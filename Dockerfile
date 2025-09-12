@@ -2,11 +2,14 @@
 FROM eclipse-temurin:21-jdk-jammy AS build
 WORKDIR /app
 
-COPY gradlew .
-RUN chmod +x gradlew
-COPY gradle gradle
+# First, copy all project files into the container.
+# This includes the gradlew script, but it won't have execute permissions yet.
 COPY . .
 
+# NOW, make the gradlew script executable inside the container.
+RUN chmod +x ./gradlew
+
+# Now you can run the build command without a permission error.
 RUN ./gradlew clean bootJar -x test
 RUN mv build/libs/*.jar app.jar
 
