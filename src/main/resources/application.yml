@@ -1,0 +1,23 @@
+server:
+  port: ${PORT:8080}
+
+spring:
+  data:
+    mongodb:
+      uri: ${MONGODB_URI}
+
+  cache:
+    caffeine:
+      spec: maximumSize=1000,expireAfterWrite=1h
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-exp-min: 60
+  issuer: learnverse-api
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+
+
+
