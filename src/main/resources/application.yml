@@ -6,6 +6,13 @@ spring:
     mongodb:
       uri: ${MONGODB_URI}
 
+  # File upload configuration for tutor verification documents
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+      enabled: true
+
   cache:
     caffeine:
       spec: maximumSize=1000,expireAfterWrite=1h
@@ -15,9 +22,11 @@ jwt:
   access-token-exp-min: 60
   issuer: learnverse-api
 
+# Custom file storage configuration
+app:
+  file:
+    upload-dir: ${FILE_UPLOAD_DIR:./uploads}
+
 logging:
   level:
     org.springframework.security: DEBUG
-
-
-
