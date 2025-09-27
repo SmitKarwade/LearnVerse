@@ -16,14 +16,10 @@ public class AuthController {
 
     private final AuthService authService;
 
-    @PostMapping("/auth/register-user")
-    public ResponseEntity<AuthResponse> registerUser(@Valid @RequestBody RegisterRequest req) {
-        return ResponseEntity.ok(authService.register(req, Role.USER));
-    }
-
-    @PostMapping("/auth/register-tutor")
-    public ResponseEntity<AuthResponse> registerTutor(@Valid @RequestBody RegisterRequest req) {
-        return ResponseEntity.ok(authService.register(req, Role.TUTOR));
+    // Single registration endpoint - everyone starts as USER
+    @PostMapping("/auth/register")
+    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
+        return ResponseEntity.ok(authService.register(req, Role.USER)); // Always USER
     }
 
     @PostMapping("/auth/login")
