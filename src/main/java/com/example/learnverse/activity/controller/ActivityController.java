@@ -4,6 +4,7 @@ import com.example.learnverse.activity.model.Activity;
 import com.example.learnverse.activity.model.PagedResponse;
 import com.example.learnverse.activity.service.ActivityService;
 import com.example.learnverse.activity.filter.ActivityFilterDto;
+import com.example.learnverse.auth.annotation.RequireApprovedTutor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,18 +30,63 @@ public class ActivityController {
         private Double userLongitude;
     }
 
+    @RequireApprovedTutor  // ← Add this annotation
     @PostMapping("/create")
     public ResponseEntity<?> createActivity(@RequestBody Activity activity, Authentication auth) {
         String tutorId = auth.getName();
-        boolean isTutor = auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(role -> role.equals("ROLE_TUTOR"));
 
-        if (isTutor) {
-            Activity saved = activityService.createActivityByTutor(activity, tutorId);
-            return ResponseEntity.ok(saved);
-        } else {
-            return ResponseEntity.status(403).body("Only tutors can create activities.");
+        // No need to check role manually anymore - annotation handles it
+        Activity saved = activityService.createActivityByTutor(activity, tutorId);
+        return ResponseEntity.ok(saved);
+    }
+
+    @RequireApprovedTutor
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateActivity(@PathVariable String id, @RequestBody Activity activity, Authentication auth) {
+        try {
+            String tutorId = auth.getName();
+
+            Activity existingActivity = activityService.getActivityById(id);
+            if (!existingActivity.getTutorId().equals(tutorId)) {
+                return ResponseEntity.status(403).body("You can only update your own activities");
+            }
+
+            Activity updated = activityService.updateActivity(id, activity);
+            return ResponseEntity.ok(updated);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @RequireApprovedTutor
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteActivity(@PathVariable String id, Authentication auth) {
+        try {
+            String tutorId = auth.getName();
+
+            Activity existingActivity = activityService.getActivityById(id);
+            if (!existingActivity.getTutorId().equals(tutorId)) {
+                return ResponseEntity.status(403).body("You can only delete your own activities");
+            }
+
+            activityService.deleteActivity(id);
+            return ResponseEntity.ok("Activity deleted successfully");
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @RequireApprovedTutor
+    @GetMapping("/my-activities")
+    public ResponseEntity<?> getMyActivities(Authentication auth) {
+        try {
+            String tutorId = auth.getName();
+            List<Activity> activities = activityService.getActivitiesByTutor(tutorId);
+            return ResponseEntity.ok(activities);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 

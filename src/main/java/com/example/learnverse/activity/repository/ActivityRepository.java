@@ -84,4 +84,11 @@ public interface ActivityRepository extends MongoRepository<Activity, String> {
             "  { 'isPublic': true } " +
             "] }")
     Page<Activity> findWithInstallment(Pageable pageable);
+
+    // Find activities by tutor
+    List<Activity> findByTutorIdAndIsActive(String tutorId, Boolean isActive);
+
+    // Find all activities by tutor (including inactive)
+    List<Activity> findByTutorId(String tutorId);
+
 }

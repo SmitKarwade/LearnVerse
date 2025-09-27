@@ -238,6 +238,77 @@ public class ActivityService {
         }
     }
 
+    /**
+     * Update an existing activity (only by the tutor who created it)
+     */
+    public Activity updateActivity(String activityId, Activity updatedActivity) {
+        Activity existingActivity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("Activity not found with id: " + activityId));
+
+        normalizeActivityData(updatedActivity);
+
+        updatedActivity.setId(activityId);
+        updatedActivity.setTutorId(existingActivity.getTutorId());
+        updatedActivity.setCreatedAt(existingActivity.getCreatedAt());
+        updatedActivity.setUpdatedAt(new java.util.Date());
+
+        // Handle location coordinates if provided
+        if (updatedActivity.getLocation() != null && updatedActivity.getLocation().getCoordinates() != null) {
+            Double lon = updatedActivity.getLocation().getCoordinates().getCoordinates().get(0);
+            Double lat = updatedActivity.getLocation().getCoordinates().getCoordinates().get(1);
+
+            if (lat != null && lon != null) {
+                Activity.Location.Coordinates geoJsonCoords = Activity.Location.Coordinates.builder()
+                        .type("Point")
+                        .coordinates(Arrays.asList(lon, lat))
+                        .build();
+
+                updatedActivity.getLocation().setCoordinates(geoJsonCoords);
+            }
+        }
+
+        return activityRepository.save(updatedActivity);
+    }
+
+    /**
+     * Delete an activity (only by the tutor who created it)
+     */
+    public void deleteActivity(String activityId) {
+        // Check if activity exists
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("Activity not found with id: " + activityId));
+
+        // Delete the activity
+        activityRepository.deleteById(activityId);
+        log.info("Activity deleted successfully: {} by tutor: {}", activityId, activity.getTutorId());
+    }
+
+    /**
+     * Soft delete - mark as inactive instead of deleting
+     */
+    public Activity deactivateActivity(String activityId) {
+        Activity activity = activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("Activity not found with id: " + activityId));
+
+        activity.setIsActive(false);
+        activity.setUpdatedAt(new java.util.Date());
+
+        return activityRepository.save(activity);
+    }
+
+    /**
+     * Get activities created by a specific tutor
+     */
+    public List<Activity> getActivitiesByTutor(String tutorId) {
+        return activityRepository.findByTutorIdAndIsActive(tutorId, true);
+    }
+
+    public Activity getActivityById(String activityId) {
+        return activityRepository.findById(activityId)
+                .orElseThrow(() -> new RuntimeException("Activity not found with id: " + activityId));
+    }
+
+
 
     // Existing methods...
     public Activity createActivityByTutor(Activity activity, String tutorId) {
