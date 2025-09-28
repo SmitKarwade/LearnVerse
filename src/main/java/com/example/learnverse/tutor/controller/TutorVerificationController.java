@@ -1,14 +1,12 @@
-package com.example.learnverse.tutor;
+package com.example.learnverse.tutor.controller;
 
 
 import com.example.learnverse.auth.service.AuthService;
 import com.example.learnverse.auth.user.AppUser;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.learnverse.tutor.service.TutorVerificationService;
@@ -18,6 +16,7 @@ import com.example.learnverse.tutor.enumcl.VerificationStatus;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tutor-verification")
@@ -106,20 +105,6 @@ public class TutorVerificationController {
     }
 
     /**
-     * Admin: Get all pending verifications
-     */
-    @GetMapping("/admin/pending")
-    public ResponseEntity<?> getPendingVerifications() {
-        try {
-            List<TutorVerification> pendingVerifications = verificationService.getPendingVerifications();
-            return ResponseEntity.ok(pendingVerifications);
-        } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(createErrorResponse(e.getMessage()));
-        }
-    }
-
-    /**
      * Admin: Get all verifications
      */
     @GetMapping("/admin/all")
@@ -192,6 +177,86 @@ public class TutorVerificationController {
             return ResponseEntity.badRequest()
                     .body(createErrorResponse(e.getMessage()));
         }
+    }
+
+    /**
+     * Admin: Get pending verifications with document links
+     */
+    @GetMapping("/admin/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getPendingVerifications() {
+        try {
+            List<TutorVerification> pendingVerifications = verificationService.getPendingVerifications();
+
+            // Add document access URLs
+            List<Map<String, Object>> response = pendingVerifications.stream()
+                    .map(this::mapVerificationWithDocumentLinks)
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * Admin: Get specific verification with document links
+     */
+    @GetMapping("/admin/verification/{verificationId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getVerificationDetails(@PathVariable String verificationId) {
+        try {
+            TutorVerification verification = verificationService.getVerificationById(verificationId);
+            Map<String, Object> response = mapVerificationWithDocumentLinks(verification);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest()
+                    .body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * Helper method to map verification with document access links
+     */
+    private Map<String, Object> mapVerificationWithDocumentLinks(TutorVerification verification) {
+        Map<String, Object> verificationData = new HashMap<>();
+        verificationData.put("id", verification.getId());
+        verificationData.put("email", verification.getEmail());
+        verificationData.put("fullName", verification.getFullName());
+        verificationData.put("phone", verification.getPhone());
+        verificationData.put("status", verification.getStatus().name());
+        verificationData.put("statusDescription", verification.getStatus().getDescription());
+        verificationData.put("termsAccepted", verification.getTermsAccepted());
+        verificationData.put("createdAt", verification.getCreatedAt());
+        verificationData.put("updatedAt", verification.getUpdatedAt());
+
+        // Document information
+        Map<String, Object> documents = new HashMap<>();
+
+        if (verification.getIdDocumentPath() != null) {
+            documents.put("idDocument", Map.of(
+                    "originalName", verification.getIdDocumentOriginalName(),
+                    "downloadUrl", "/api/files/verification-documents/" + verification.getIdDocumentPath(),
+                    "viewUrl", "/api/files/verification-documents/view/" + verification.getIdDocumentPath()
+            ));
+        }
+
+        if (verification.getCertificatePath() != null) {
+            documents.put("certificate", Map.of(
+                    "originalName", verification.getCertificateOriginalName(),
+                    "downloadUrl", "/api/files/verification-documents/" + verification.getCertificatePath(),
+                    "viewUrl", "/api/files/verification-documents/view/" + verification.getCertificatePath()
+            ));
+        }
+
+        verificationData.put("documents", documents);
+
+        if (verification.getRejectionReason() != null) {
+            verificationData.put("rejectionReason", verification.getRejectionReason());
+        }
+
+        return verificationData;
     }
 
     /**

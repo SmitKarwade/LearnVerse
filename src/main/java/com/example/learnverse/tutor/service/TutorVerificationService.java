@@ -117,6 +117,12 @@ public class TutorVerificationService {
         return repository.save(verification);
     }
 
+    public TutorVerification getVerificationById(String verificationId) {
+        return repository.findById(verificationId)
+                .orElseThrow(() -> new RuntimeException("Verification request not found"));
+    }
+
+
     public List<TutorVerification> getPendingVerifications() {
         return repository.findByStatus(VerificationStatus.PENDING);
     }

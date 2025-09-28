@@ -35,6 +35,10 @@ public class SecurityConfig {
                 // PUBLIC endpoints
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello").permitAll()
 
+                .requestMatchers("/api/debug/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+
+                .requestMatchers("/api/files/**").hasRole("ADMIN")
+
                 // USER-only endpoints (before becoming tutor)
                 .requestMatchers(HttpMethod.POST, "/api/tutor-verification/register").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/tutor-verification/status/**").hasRole("USER")
