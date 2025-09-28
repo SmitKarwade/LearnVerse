@@ -4,11 +4,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
 import java.util.UUID;
 
 @Service
@@ -66,6 +69,24 @@ public class FileStorageService {
             System.err.println("Could not delete file: " + filePath);
         }
     }
+
+    // Add to your FileStorageService
+    public void deleteVerificationFiles(String verificationId) {
+        try {
+            Path tutorDir = fileStorageLocation.resolve("tutors").resolve(verificationId);
+            if (Files.exists(tutorDir)) {
+                // Delete all files in the tutor's directory
+                Files.walk(tutorDir)
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            }
+        } catch (Exception e) {
+            // Log but don't throw - file cleanup is not critical
+            System.err.println("Failed to delete verification files for " + verificationId + ": " + e.getMessage());
+        }
+    }
+
 
     public Path getFileStorageLocation() {
         return fileStorageLocation;

@@ -2,75 +2,80 @@ package com.example.learnverse.auth.security;
 
 import com.example.learnverse.auth.jwt.JwtUtil;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jws;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationToken;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        System.out.println("🔍 Filter: Processing request to " + request.getRequestURI());
+        String token = extractTokenFromRequest(request);
 
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        System.out.println("🔍 Filter: Auth Header = " + (header != null ? "Bearer ***" : "null"));
+        if (token != null) {
+            try {
+                // Use your existing validateAndParse method
+                var jws = jwtUtil.validateAndParse(token);
+                Claims claims = jws.getPayload(); // Get claims from Jws<Claims>
 
-        if (!StringUtils.hasText(header) || !header.startsWith("Bearer ")) {
-            System.out.println("❌ Filter: No Bearer token");
-            filterChain.doFilter(request, response);
-            return;
-        }
+                String userId = claims.getSubject();
+                String role = claims.get("role", String.class);
 
-        String token = header.substring(7);
-        System.out.println("Token: " + token);
-        try {
-            System.out.println("Done0");
-            Jws<Claims> jws = jwtUtil.validateAndParse(token);
-            System.out.println("Done1");
-            Claims claims = jws.getPayload();
-            System.out.println("Done2");
-            String userId = claims.getSubject();
-            System.out.println("Done3");
-            String role = claims.get("role", String.class);
-            System.out.println("✅ Filter: JWT Valid - UserId: " + userId + ", Role: " + role);
+                log.info("✅ Filter: JWT Valid - UserId: {}, Role: {}", userId, role);
 
-            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            Authentication authentication = new UsernamePasswordAuthenticationToken(
-                    userId, token, authorities);
+                // Create authorities
+                List<GrantedAuthority> authorities = Collections.singletonList(
+                        new SimpleGrantedAuthority("ROLE_" + role)
+                );
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            System.out.println("🔒 Filter: Authentication set with role: ROLE_" + role);
+                // Use standard PreAuthenticatedAuthenticationToken
+                PreAuthenticatedAuthenticationToken authentication =
+                        new PreAuthenticatedAuthenticationToken(userId, null, authorities);
 
-        } catch (Exception e) {
-            System.out.println("❌ Filter: JWT validation failed: " + e.getMessage());
+                // Set claims as details for SpEL access
+                authentication.setDetails(claims);
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                log.info("🔒 Filter: Authentication set with role: ROLE_{}", role);
+
+            } catch (JwtException e) {
+                log.error("❌ Invalid JWT token: {}", e.getMessage());
+            } catch (Exception e) {
+                log.error("❌ Cannot set user authentication: {}", e.getMessage());
+            }
         }
 
         filterChain.doFilter(request, response);
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path.startsWith("/auth/") || path.startsWith("/actuator/health");
+    // Extract token from Authorization header
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
     }
 }

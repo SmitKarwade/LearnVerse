@@ -23,18 +23,18 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
+
     // Everyone registers as USER by default
     public AuthResponse register(@Valid RegisterRequest req, Role role) {
         if (userRepository.existsByEmail(req.email())) {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        // Force USER role for security - ignore the role parameter
         AppUser user = AppUser.builder()
                 .name(req.name())
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .role(Role.USER) // Always USER, regardless of parameter
+                .role(role) // Can be USER, TUTOR, or ADMIN
                 .createdAt(Instant.now())
                 .build();
         user = userRepository.save(user);
@@ -75,4 +75,6 @@ public class AuthService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
+
+
 }

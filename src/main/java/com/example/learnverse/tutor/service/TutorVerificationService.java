@@ -22,10 +22,45 @@ public class TutorVerificationService {
     public TutorVerification createVerificationRequest(String email, String fullName, String phone,
                                                        MultipartFile idDocument, MultipartFile certificate, Boolean termsAccepted) {
 
-        // Check if tutor already exists
-        Optional<TutorVerification> existingTutor = repository.findByEmail(email);
-        if (existingTutor.isPresent()) {
-            throw new RuntimeException("Tutor with this email already exists");
+        // Check existing verification status
+        Optional<TutorVerification> existingVerification = repository.findByEmail(email);
+        if (existingVerification.isPresent()) {
+            TutorVerification existing = existingVerification.get();
+
+            switch (existing.getStatus()) {
+                case PENDING:
+                    throw new RuntimeException(String.format(
+                            "Your tutor verification request is already submitted and pending review. " +
+                                    "Submitted on: %s. Please wait for admin approval.",
+                            existing.getCreatedAt()
+                    ));
+
+                case APPROVED:
+                    throw new RuntimeException(
+                            "You are already a verified tutor! You can start creating activities."
+                    );
+
+                case REJECTED:
+                    // Allow resubmission with helpful message
+                    String message = String.format(
+                            "Your previous verification was rejected. Reason: %s. " +
+                                    "You can resubmit with updated documents.",
+                            existing.getRejectionReason() != null ? existing.getRejectionReason() : "No reason provided"
+                    );
+
+                    // Delete the old rejected request
+                    try {
+                        // Also clean up old files if they exist
+                        fileStorageService.deleteVerificationFiles(existing.getId());
+                    } catch (Exception e) {
+                        // Continue even if file deletion fails
+                    }
+                    repository.deleteById(existing.getId());
+
+                    // Log the resubmission
+                    System.out.println("User " + email + " is resubmitting verification after rejection");
+                    break;
+            }
         }
 
         // Validate files

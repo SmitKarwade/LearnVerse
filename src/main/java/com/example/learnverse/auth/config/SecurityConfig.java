@@ -32,29 +32,35 @@ public class SecurityConfig {
                 .accessDeniedHandler(accessDeniedHandler));
 
         http.authorizeHttpRequests(auth -> auth
-                // PUBLIC - Anyone can register as basic user
+                // PUBLIC endpoints
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello").permitAll()
 
-                // AUTHENTICATED USER - Can request tutor verification
+                // USER-only endpoints (before becoming tutor)
                 .requestMatchers(HttpMethod.POST, "/api/tutor-verification/register").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/tutor-verification/status/**").hasRole("USER")
 
-                // TEMPORARILY PUBLIC for testing - REMOVE THIS LATER!
-                .requestMatchers("/api/tutor-verification/admin/**").permitAll()
-
-                // ADMIN ONLY - Review and approve verifications
+                // ADMIN endpoints
                 .requestMatchers("/api/tutor-verification/admin/**").hasRole("ADMIN")
 
-                // APPROVED TUTOR ONLY - Must have TUTOR role AND approved status
-                .requestMatchers("/api/activities/create").hasRole("TUTOR")
+                // TUTOR-only endpoints (creating/managing activities)
+                .requestMatchers(HttpMethod.POST, "/api/activities/create").hasRole("TUTOR")
+                .requestMatchers(HttpMethod.PUT, "/api/activities/**").hasRole("TUTOR")
+                .requestMatchers(HttpMethod.DELETE, "/api/activities/**").hasRole("TUTOR")
+                .requestMatchers("/api/activities/my-activities").hasRole("TUTOR")
                 .requestMatchers("/api/tutor/**").hasRole("TUTOR")
 
-                // REGULAR USER - Can browse activities
-                .requestMatchers("/api/user/**").hasRole("USER")
-                .requestMatchers("/api/activities/filter").hasRole("USER")
-                .requestMatchers("/api/activities/filter/**").hasRole("USER")
+                // BOTH USER AND TUTOR can browse activities (this is the key fix!)
+                .requestMatchers(HttpMethod.GET, "/api/activities/**").hasAnyRole("USER", "TUTOR")
+                .requestMatchers("/api/activities/filter").hasAnyRole("USER", "TUTOR")
+                .requestMatchers("/api/activities/filter/**").hasAnyRole("USER", "TUTOR")
+                .requestMatchers("/api/activities/search/**").hasAnyRole("USER", "TUTOR")
+                .requestMatchers("/api/activities/all").hasAnyRole("USER", "TUTOR")
+                .requestMatchers("/api/activities/my-feed").hasAnyRole("USER", "TUTOR")
 
-                // Both roles can access general API
+                // USER-specific endpoints (interests, profile, etc.)
+                .requestMatchers("/api/user/**").hasAnyRole("USER", "TUTOR")
+
+                // Fallback
                 .requestMatchers("/api/**").hasAnyRole("USER", "TUTOR")
                 .anyRequest().authenticated()
         );

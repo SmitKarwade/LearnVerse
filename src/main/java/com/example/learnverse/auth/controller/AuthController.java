@@ -26,5 +26,11 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
         return ResponseEntity.ok(authService.login(req));
     }
+
+    @PostMapping("/auth/create-admin")
+    public ResponseEntity<AuthResponse> createAdmin(@Valid @RequestBody RegisterRequest req) {
+        // You might want to add additional validation or make this endpoint secured
+        return ResponseEntity.ok(authService.register(req, Role.ADMIN));
+    }
 }
 

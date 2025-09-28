@@ -46,17 +46,6 @@ public class TutorVerificationController {
             @RequestParam(required = false) MultipartFile certificate,
             @RequestParam(required = false) Boolean termsAccepted) {
 
-        System.out.println("=== DEBUG TUTOR REGISTRATION ===");
-        System.out.println("Content-Type: " + request.getContentType());
-        System.out.println("fullName: " + fullName);
-        System.out.println("email: " + email);
-        System.out.println("phone: " + phone);
-        System.out.println("termsAccepted: " + termsAccepted);
-        System.out.println("idDocument: " + (idDocument != null ? idDocument.getOriginalFilename() : "null"));
-        System.out.println("certificate: " + (certificate != null ? certificate.getOriginalFilename() : "null"));
-        System.out.println("All parameters: " + request.getParameterMap());
-        System.out.println("================================");
-
         try {
             // Validate terms acceptance
             if (termsAccepted == null || !termsAccepted) {

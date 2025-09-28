@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-@PreAuthorize("hasRole('TUTOR')")
+@PreAuthorize("hasRole('TUTOR') and authentication.details['status'] == 'APPROVED'")
 public @interface RequireApprovedTutor {
 }
