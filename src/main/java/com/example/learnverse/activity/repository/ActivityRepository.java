@@ -91,4 +91,6 @@ public interface ActivityRepository extends MongoRepository<Activity, String> {
     // Find all activities by tutor (including inactive)
     List<Activity> findByTutorId(String tutorId);
 
+
+    List<Activity> findByIsPublicTrue();
 }
