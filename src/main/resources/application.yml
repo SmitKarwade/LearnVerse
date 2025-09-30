@@ -27,6 +27,25 @@ app:
   file:
     upload-dir: ${FILE_UPLOAD_DIR:./uploads}
 
+  admin:
+    email: ${ADMIN_EMAIL:admin@learnverse.com}
+    password: ${ADMIN_PASSWORD:admin@123}
+    name: ${ADMIN_NAME:System Administrator}
+
 logging:
   level:
     org.springframework.security: DEBUG
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY}
+    model: "gemini-2.5-flash"
+    base-url: "https://generativelanguage.googleapis.com/v1beta"
+
+learning-assistant:
+  name: "LearnVerse AI"
+  personality: "encouraging, supportive, student-focused, practical"
+  max-tokens: 1500
+  temperature: 0.8
+
+

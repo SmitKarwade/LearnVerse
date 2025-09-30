@@ -23,9 +23,13 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-
-    // Everyone registers as USER by default
+    // Only allow USER registration
     public AuthResponse register(@Valid RegisterRequest req, Role role) {
+        // Ensure only USER role can be registered via this endpoint
+        if (role != Role.USER) {
+            throw new IllegalArgumentException("Direct registration only allowed for USER role");
+        }
+
         if (userRepository.existsByEmail(req.email())) {
             throw new IllegalArgumentException("Email already registered");
         }
@@ -34,7 +38,7 @@ public class AuthService {
                 .name(req.name())
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
-                .role(role) // Can be USER, TUTOR, or ADMIN
+                .role(Role.USER)
                 .createdAt(Instant.now())
                 .build();
         user = userRepository.save(user);
@@ -61,7 +65,7 @@ public class AuthService {
         return new AuthResponse(token, "Bearer", jwtUtil.getAccessExpSeconds(), user.getRole().name(), user.getId());
     }
 
-    // Add method to upgrade user to tutor (called from tutor verification approval)
+    // Keep the upgrade method for tutor verification
     public AppUser upgradeUserToTutor(String userId) {
         AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
@@ -70,11 +74,8 @@ public class AuthService {
         return userRepository.save(user);
     }
 
-    // Helper method to get user by email
     public AppUser getUserByEmail(String email) {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
-
-
 }

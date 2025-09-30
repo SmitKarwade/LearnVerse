@@ -730,4 +730,11 @@ public class ActivityService {
             activity.getSchedule().setSessionDays(normalizedDays);
         }
     }
+
+
+    // AI chatbot
+    public List<Activity> getAllPublicActivities() {
+        return activityRepository.findByIsPublicTrue();
+    }
+
 }
