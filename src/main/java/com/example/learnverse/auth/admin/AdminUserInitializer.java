@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Date;
 
 @Component
 @RequiredArgsConstructor
@@ -28,7 +29,7 @@ public class AdminUserInitializer implements CommandLineRunner {
                     .email(adminProperties.getEmail())
                     .passwordHash(passwordEncoder.encode(adminProperties.getPassword()))
                     .role(Role.ADMIN)
-                    .createdAt(Instant.now())
+                    .createdAt(Date.from(Instant.now()))
                     .build();
 
             userRepository.save(admin);

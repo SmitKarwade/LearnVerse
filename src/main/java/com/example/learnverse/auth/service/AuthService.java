@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.Map;
 
 @Service
@@ -39,8 +40,9 @@ public class AuthService {
                 .email(req.email())
                 .passwordHash(passwordEncoder.encode(req.password()))
                 .role(Role.USER)
-                .createdAt(Instant.now())
+                .createdAt(Date.from(Instant.now()))
                 .build();
+
         user = userRepository.save(user);
 
         String token = jwtUtil.generateAccessToken(

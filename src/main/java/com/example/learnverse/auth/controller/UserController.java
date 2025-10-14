@@ -153,7 +153,7 @@ public class UserController {
     /**
      * Get user profile info
      */
-    @GetMapping("/profile")
+    @GetMapping("/info")
     public ResponseEntity<?> getUserProfile(Authentication auth) {
         try {
             String userId = auth.getName();

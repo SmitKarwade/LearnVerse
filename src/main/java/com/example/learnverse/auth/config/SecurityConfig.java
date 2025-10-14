@@ -35,6 +35,8 @@ public class SecurityConfig {
                 // PUBLIC endpoints
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello").permitAll()
 
+                .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+
                 .requestMatchers("/api/debug/**").hasAnyRole("USER", "TUTOR", "ADMIN")
 
                 .requestMatchers("/api/files/**").hasRole("ADMIN")

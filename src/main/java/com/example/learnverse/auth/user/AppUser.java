@@ -1,29 +1,45 @@
 package com.example.learnverse.auth.user;
 
 import com.example.learnverse.auth.modelenum.Role;
-import com.mongodb.lang.Nullable;
-import jakarta.validation.constraints.Size;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 
-@Getter @Setter
-@Builder @NoArgsConstructor @AllArgsConstructor
 @Document(collection = "users")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AppUser {
+
     @Id
     private String id;
 
-    private String name;
+    // Authentication Info
     private String email;
+
     private String passwordHash;
     private Role role;
-    // Only for USER role - interests field
-    @Nullable
-    @Size(min = 3, max = 10, message = "User must have between 3-10 interests")
+    private Boolean isActive;
+    private Date createdAt;
+    private Date updatedAt;
+
+    // Basic Info (for backward compatibility)
+    private String name;
     private List<String> interests;
-    private Instant createdAt;
+
+    // Enhanced Profile
+    private UserProfile profile;
+    private Boolean profileCompleted;
+
+    // AI Assistant Settings
+    private Boolean aiAssistantEnabled;
 }
