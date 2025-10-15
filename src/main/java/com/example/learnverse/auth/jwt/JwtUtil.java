@@ -23,14 +23,13 @@ public class JwtUtil {
 
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-exp-min}") long accessExpMinutes,
+            @Value("${jwt.access-token-exp-min:15}") long accessExpMinutes, // Short-lived access tokens
             @Value("${jwt.issuer}") String issuer) {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessExpMinutes = accessExpMinutes;
         this.issuer = issuer;
     }
 
-    // Latest non-deprecated token generation
     public String generateAccessToken(String subject, Map<String, Object> claims) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(accessExpMinutes * 60);
@@ -45,7 +44,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    // Latest non-deprecated token parsing
     public Jws<Claims> validateAndParse(String token) throws JwtException {
         return Jwts.parser()
                 .verifyWith((SecretKey) key)
@@ -56,5 +54,15 @@ public class JwtUtil {
 
     public long getAccessExpSeconds() {
         return accessExpMinutes * 60;
+    }
+
+    // Extract expiration date from token
+    public Instant getExpirationFromToken(String token) {
+        try {
+            Claims claims = validateAndParse(token).getPayload();
+            return claims.getExpiration().toInstant();
+        } catch (JwtException e) {
+            throw new RuntimeException("Invalid token");
+        }
     }
 }

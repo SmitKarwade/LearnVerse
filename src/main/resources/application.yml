@@ -19,7 +19,8 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET}
-  access-token-exp-min: 60
+  access-token-exp-min: 15
+  refresh-token-exp-days: 7
   issuer: learnverse-api
 
 # Custom file storage configuration

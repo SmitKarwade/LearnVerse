@@ -1,6 +1,7 @@
 package com.example.learnverse.auth.security;
 
 import com.example.learnverse.auth.jwt.JwtUtil;
+import com.example.learnverse.auth.refresh.RefreshTokenService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -26,6 +27,7 @@ import java.util.List;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -39,6 +41,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 // Use your existing validateAndParse method
                 var jws = jwtUtil.validateAndParse(token);
                 Claims claims = jws.getPayload(); // Get claims from Jws<Claims>
+
+                // **ADD THIS BLOCK HERE - AFTER JWT VALIDATION, BEFORE EXTRACTING USER INFO**
+                if (refreshTokenService.isTokenBlacklisted(token)) {
+                    log.warn("⚠️ Attempted access with blacklisted token");
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
+                    return; // Stop processing
+                }
+                // **END OF NEW BLOCK**
 
                 String userId = claims.getSubject();
                 String role = claims.get("role", String.class);

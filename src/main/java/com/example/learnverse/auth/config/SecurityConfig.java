@@ -33,7 +33,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(auth -> auth
                 // PUBLIC endpoints
-                .requestMatchers("/auth/**", "/actuator/health", "/api/hello").permitAll()
+                .requestMatchers("/auth/**", "/actuator/health", "/api/hello", "/api/test/**").permitAll()
 
                 .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "TUTOR", "ADMIN")
 
