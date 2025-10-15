@@ -14,6 +14,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/activities")
@@ -75,6 +76,35 @@ public class ActivityController {
 
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/by-ids")
+    public ResponseEntity<?> getActivitiesByIds(
+            @RequestBody List<String> ids,
+            Authentication auth) {
+        try {
+            List<Activity> activities = activityService.getActivitiesByIds(ids);
+
+            // Filter based on access permissions
+            String userId = auth.getName();
+            boolean isTutor = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .anyMatch(role -> role.equals("ROLE_TUTOR"));
+
+            List<Activity> accessibleActivities = activities.stream()
+                    .filter(activity -> {
+                        if (activity.getIsPublic()) {
+                            return true;
+                        }
+                        // Private activities only accessible by their tutor
+                        return isTutor && activity.getTutorId().equals(userId);
+                    })
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.ok(accessibleActivities);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error fetching activities: " + e.getMessage());
         }
     }
 

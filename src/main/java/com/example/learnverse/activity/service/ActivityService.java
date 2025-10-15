@@ -238,6 +238,14 @@ public class ActivityService {
         }
     }
 
+    public List<Activity> getActivitiesByIds(List<String> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        return activityRepository.findAllById(ids);
+    }
+
     /**
      * Update an existing activity (only by the tutor who created it)
      */
