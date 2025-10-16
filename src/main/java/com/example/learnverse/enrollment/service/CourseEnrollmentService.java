@@ -52,18 +52,32 @@ public class CourseEnrollmentService {
                 }
             }
 
-            // Get user and activity details
+
             AppUser user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
+
             Activity activity = activityService.getActivityById(request.getActivityId());
 
-            // ✅ FIXED: Properly handle null totalSessions
+
+            // ✅ ULTRA-SAFE totalSessions handling
             int totalSessions = 10; // Default value
-            if (activity.getDuration() != null && activity.getDuration().getTotalSessions() != null) {
-                totalSessions = activity.getDuration().getTotalSessions();
+            try {
+                if (activity != null && activity.getDuration() != null) {
+                    Integer sessionCount = activity.getDuration().getTotalSessions();
+
+                    if (sessionCount != null) {
+                        totalSessions = sessionCount.intValue(); // Explicit conversion
+                    } else {
+                        log.info("🔍 Using default sessions (null value): {}", totalSessions);
+                    }
+                } else {
+                    log.info("🔍 Using default sessions (null activity/duration): {}", totalSessions);
+                }
+            } catch (Exception e) {
+                log.error("❌ Error processing totalSessions, using default: {}", e.getMessage());
+                totalSessions = 10; // Fallback
             }
 
-            // Create new enrollment
             CourseEnrollment enrollment = CourseEnrollment.builder()
                     .userId(userId)
                     .userName(user.getName())
@@ -75,30 +89,30 @@ public class CourseEnrollmentService {
                     .status(EnrollmentStatus.ENROLLED)
                     .progressPercentage(0.0)
                     .sessionsAttended(0)
-                    .totalSessions(totalSessions) // ✅ Now uses the safe value
+                    .totalSessions(totalSessions)
                     .studyHoursSpent(0)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
                     .build();
 
-            // Save enrollment
+
+
             enrollment = enrollmentRepository.save(enrollment);
 
-            // Update user's current focus area if not set
+
+
             if (user.getProfile() != null && user.getProfile().getCurrentFocusArea() == null) {
                 user.getProfile().setCurrentFocusArea(activity.getSubject());
                 userRepository.save(user);
             }
 
-            // Log enrollment activity for AI analysis
+
             recordLearningActivity(enrollment, "ENROLLED", "Enrolled in course", 0);
 
-            log.info("✅ User {} enrolled in course: {}", user.getName(), activity.getTitle());
             return enrollment;
 
         } catch (Exception e) {
-            log.error("❌ Error enrolling user {} in course {}: {}", userId, request.getActivityId(), e.getMessage());
-            throw new RuntimeException("Failed to enroll in course: " + e.getMessage());
+            throw new RuntimeException("Failed to enroll in course: " + e.getMessage(), e); // Preserve cause
         }
     }
 
