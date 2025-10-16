@@ -42,7 +42,7 @@ public class ActivityController {
         return ResponseEntity.ok(saved);
     }
 
-    @RequireApprovedTutor
+    @PreAuthorize("hasRole('TUTOR')")
     @PutMapping("/{id}")
     public ResponseEntity<?> updateActivity(@PathVariable String id, @RequestBody Activity activity, Authentication auth) {
         try {
@@ -61,7 +61,7 @@ public class ActivityController {
         }
     }
 
-    @RequireApprovedTutor
+    @PreAuthorize("hasRole('TUTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteActivity(@PathVariable String id, Authentication auth) {
         try {
