@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
@@ -31,7 +32,7 @@ public class ActivityController {
         private Double userLongitude;
     }
 
-    @RequireApprovedTutor  // ← Add this annotation
+    @PreAuthorize("hasRole('TUTOR')")
     @PostMapping("/create")
     public ResponseEntity<?> createActivity(@RequestBody Activity activity, Authentication auth) {
         String tutorId = auth.getName();
@@ -108,7 +109,7 @@ public class ActivityController {
         }
     }
 
-    @RequireApprovedTutor
+    @PreAuthorize("hasRole('TUTOR')")
     @GetMapping("/my-activities")
     public ResponseEntity<?> getMyActivities(Authentication auth) {
         try {
