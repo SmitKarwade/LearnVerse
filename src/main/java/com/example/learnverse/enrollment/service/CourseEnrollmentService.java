@@ -57,6 +57,12 @@ public class CourseEnrollmentService {
                     .orElseThrow(() -> new RuntimeException("User not found"));
             Activity activity = activityService.getActivityById(request.getActivityId());
 
+            // ✅ FIXED: Properly handle null totalSessions
+            int totalSessions = 10; // Default value
+            if (activity.getDuration() != null && activity.getDuration().getTotalSessions() != null) {
+                totalSessions = activity.getDuration().getTotalSessions();
+            }
+
             // Create new enrollment
             CourseEnrollment enrollment = CourseEnrollment.builder()
                     .userId(userId)
@@ -69,7 +75,7 @@ public class CourseEnrollmentService {
                     .status(EnrollmentStatus.ENROLLED)
                     .progressPercentage(0.0)
                     .sessionsAttended(0)
-                    .totalSessions(activity.getDuration() != null ? activity.getDuration().getTotalSessions() : 10)
+                    .totalSessions(totalSessions) // ✅ Now uses the safe value
                     .studyHoursSpent(0)
                     .createdAt(LocalDateTime.now())
                     .updatedAt(LocalDateTime.now())
