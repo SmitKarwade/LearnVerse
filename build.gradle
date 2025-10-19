@@ -39,6 +39,10 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.20.0")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.20.0")
 
+    implementation("com.cloudinary:cloudinary-http44:1.39.0")
+    implementation("commons-fileupload:commons-fileupload:1.6.0")
+    implementation("org.springframework.boot:spring-boot-starter-websocket")
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

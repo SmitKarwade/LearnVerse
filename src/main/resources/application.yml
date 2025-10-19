@@ -49,4 +49,9 @@ learning-assistant:
   max-tokens: 1500
   temperature: 0.8
 
+cloudinary:
+  cloud-name: "ddm0cdii7"
+  api-key: 269435948944377
+  api-secret: "ZfU8VALycPCw2M-D7vL5u6-3kgo"
+
 

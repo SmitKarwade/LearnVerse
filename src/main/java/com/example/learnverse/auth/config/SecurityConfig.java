@@ -35,6 +35,20 @@ public class SecurityConfig {
                 // PUBLIC endpoints
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello", "/api/test/**").permitAll()
 
+                .requestMatchers("/ws/community").hasAnyRole("USER", "TUTOR", "ADMIN")
+
+                // Community posts - TUTOR can create, everyone can view
+                .requestMatchers(HttpMethod.POST, "/api/community/posts").hasAnyRole("TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
+
+                // ⭐ FIXED PATTERNS - Use single * instead of **
+                .requestMatchers(HttpMethod.GET, "/api/community/posts/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/community/posts/*/like").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/community/posts/*/share").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments/*/like").hasAnyRole("USER", "TUTOR", "ADMIN")
+
                 .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "TUTOR", "ADMIN")
 
                 .requestMatchers("/api/debug/**").hasAnyRole("USER", "TUTOR", "ADMIN")
