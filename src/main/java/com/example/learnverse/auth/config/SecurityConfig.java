@@ -35,41 +35,40 @@ public class SecurityConfig {
                 // PUBLIC endpoints
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello", "/api/test/**").permitAll()
 
+                // ⭐ ADMIN ENDPOINTS - PUT THESE FIRST (MOST SPECIFIC)
+                .requestMatchers("/api/tutor-verification/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/files/**").hasRole("ADMIN")
+
+                // USER-only endpoints (tutor verification registration)
+                .requestMatchers(HttpMethod.POST, "/api/tutor-verification/register").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/tutor-verification/status/**").hasRole("USER")
+
+                // WebSocket
                 .requestMatchers("/ws/community").hasAnyRole("USER", "TUTOR", "ADMIN")
 
-                // Community posts - TUTOR can create, everyone can view
+                // Community follow system
+                .requestMatchers(HttpMethod.POST, "/api/community/follow/*").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/community/follow/*").hasAnyRole("USER", "TUTOR", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/community/follow/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+
+                // Community posts - TUTOR creates, everyone views
                 .requestMatchers(HttpMethod.POST, "/api/community/posts").hasAnyRole("TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
-
-                // ⭐ FIXED PATTERNS - Use single * instead of **
                 .requestMatchers(HttpMethod.GET, "/api/community/posts/**").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/like").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/share").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments/*/like").hasAnyRole("USER", "TUTOR", "ADMIN")
 
-                .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "TUTOR", "ADMIN")
-
-                .requestMatchers("/api/debug/**").hasAnyRole("USER", "TUTOR", "ADMIN")
-
-                .requestMatchers("/api/files/**").hasRole("ADMIN")
-
-                // USER-only endpoints (before becoming tutor)
-                .requestMatchers(HttpMethod.POST, "/api/tutor-verification/register").hasRole("USER")
-                .requestMatchers(HttpMethod.GET, "/api/tutor-verification/status/**").hasRole("USER")
-
-                // ADMIN endpoints
-                .requestMatchers("/api/tutor-verification/admin/**").hasRole("ADMIN")
-
-                // TUTOR-only endpoints (creating/managing activities)
+                // TUTOR-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/activities/create").hasRole("TUTOR")
                 .requestMatchers(HttpMethod.PUT, "/api/activities/**").hasRole("TUTOR")
                 .requestMatchers(HttpMethod.DELETE, "/api/activities/**").hasRole("TUTOR")
                 .requestMatchers("/api/activities/my-activities").hasRole("TUTOR")
                 .requestMatchers("/api/tutor/**").hasRole("TUTOR")
 
-                // BOTH USER AND TUTOR can browse activities (this is the key fix!)
+                // Activities browsing - USER and TUTOR
                 .requestMatchers(HttpMethod.GET, "/api/activities/**").hasAnyRole("USER", "TUTOR")
                 .requestMatchers("/api/activities/filter").hasAnyRole("USER", "TUTOR")
                 .requestMatchers("/api/activities/filter/**").hasAnyRole("USER", "TUTOR")
@@ -77,7 +76,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/activities/all").hasAnyRole("USER", "TUTOR")
                 .requestMatchers("/api/activities/my-feed").hasAnyRole("USER", "TUTOR")
 
-                // USER-specific endpoints (interests, profile, etc.)
+                // Enrollments
+                .requestMatchers("/api/enrollments/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+
+                // Debug
+                .requestMatchers("/api/debug/**").hasAnyRole("USER", "TUTOR", "ADMIN")
+
+                // User endpoints
                 .requestMatchers("/api/user/**").hasAnyRole("USER", "TUTOR")
 
                 // Fallback

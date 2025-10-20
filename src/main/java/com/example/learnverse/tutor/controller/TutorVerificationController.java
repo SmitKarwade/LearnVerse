@@ -118,14 +118,22 @@ public class TutorVerificationController {
         }
     }
 
-    @PostMapping("/admin/approve/{verificationId}")
+    @PutMapping("/admin/approve/{verificationId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> approveVerification(@PathVariable String verificationId) {
         try {
+            System.out.println("=== APPROVAL PROCESS START ===");
+            System.out.println("Verification ID: " + verificationId);
+
             TutorVerification verification = verificationService.approveVerification(verificationId);
+            System.out.println("✅ Verification approved in DB");
 
             // Upgrade user role from USER to TUTOR
             AppUser user = authService.getUserByEmail(verification.getEmail());
+            System.out.println("✅ Found user: " + user.getEmail());
+
             authService.upgradeUserToTutor(user.getId());
+            System.out.println("✅ User upgraded to TUTOR");
 
             // Generate NEW JWT token with TUTOR role
             Map<String, Object> claims = new HashMap<>();
@@ -136,26 +144,30 @@ public class TutorVerificationController {
             claims.put("email", verification.getEmail());
 
             String jwtToken = jwtUtil.generateAccessToken(user.getId(), claims);
+            System.out.println("✅ New JWT token generated");
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Tutor verification approved successfully");
             response.put("tutorEmail", verification.getEmail());
-            response.put("jwtToken", jwtToken); // New TUTOR token
+            response.put("jwtToken", jwtToken);
             response.put("tokenExpiresIn", jwtUtil.getAccessExpSeconds());
+
+            System.out.println("=== APPROVAL PROCESS SUCCESS ===");
 
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            System.err.println("=== APPROVAL PROCESS FAILED ===");
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest()
                     .body(createErrorResponse(e.getMessage()));
         }
     }
 
-    /**
-     * Admin: Reject tutor verification
-     */
-    @PostMapping("/admin/reject/{verificationId}")
+    @PutMapping("/admin/reject/{verificationId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> rejectVerification(
             @PathVariable String verificationId,
             @RequestParam String reason) {

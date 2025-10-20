@@ -2,11 +2,13 @@ package com.example.learnverse.community.service;
 
 import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
+import com.example.learnverse.community.follow.FollowService;
 import com.example.learnverse.community.websocket.WebSocketNotificationService;
 import com.example.learnverse.community.model.Post;
 import com.example.learnverse.community.repository.PostRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.learnverse.community.cloudinary.CloudinaryService;
 import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -31,6 +36,9 @@ public class PostService {
 
     @Autowired
     private WebSocketNotificationService webSocketService;
+
+    @Autowired
+    private FollowService followService;
 
     // Create new post
     public Post createPost(String authorId, String content, MultipartFile file) {
@@ -151,6 +159,62 @@ public class PostService {
         }
 
         return postRepository.save(post);
+    }
+
+    // ⭐ FIXED: Smart Feed with followed tutors prioritized
+    public Page<Post> getSmartFeed(String userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        // Get tutors the user follows
+        List<String> followingTutorIds = followService.getFollowingTutorIds(userId);
+
+        if (followingTutorIds.isEmpty()) {
+            // User doesn't follow anyone - show all posts
+            return postRepository.findAllByOrderByCreatedAtDesc(pageable);
+        }
+
+        // ⭐ SIMPLE APPROACH: Fetch all posts and sort in memory
+        List<Post> allPosts = postRepository.findAll();
+
+        // Sort: Posts from followed tutors first, then others (newest first)
+        List<Post> sortedPosts = allPosts.stream()
+                .sorted((post1, post2) -> {
+                    boolean post1IsFollowed = followingTutorIds.contains(post1.getAuthorId());
+                    boolean post2IsFollowed = followingTutorIds.contains(post2.getAuthorId());
+
+                    // If both are followed or both not followed, sort by date
+                    if (post1IsFollowed == post2IsFollowed) {
+                        return post2.getCreatedAt().compareTo(post1.getCreatedAt());
+                    }
+
+                    // Followed posts come first
+                    return post1IsFollowed ? -1 : 1;
+                })
+                .collect(Collectors.toList());
+
+        // Apply pagination manually
+        int start = page * size;
+        int end = Math.min(start + size, sortedPosts.size());
+
+        if (start >= sortedPosts.size()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, sortedPosts.size());
+        }
+
+        List<Post> paginatedPosts = sortedPosts.subList(start, end);
+        return new PageImpl<>(paginatedPosts, pageable, sortedPosts.size());
+    }
+
+    // ⭐ NEW: Get feed from ONLY followed tutors
+    public Page<Post> getFollowingFeed(String userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+
+        List<String> followingTutorIds = followService.getFollowingTutorIds(userId);
+
+        if (followingTutorIds.isEmpty()) {
+            return Page.empty();
+        }
+
+        return postRepository.findByAuthorIdInOrderByCreatedAtDesc(followingTutorIds, pageable);
     }
 
     // Get feed posts

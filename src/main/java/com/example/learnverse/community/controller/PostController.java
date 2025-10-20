@@ -32,6 +32,28 @@ public class PostController {
         }
     }
 
+    // ⭐ NEW: Smart feed (followed tutors prioritized)
+    @GetMapping("/smart-feed")
+    public ResponseEntity<Page<Post>> getSmartFeed(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication auth) {
+        String userId = auth.getName();
+        Page<Post> posts = postService.getSmartFeed(userId, page, size);
+        return ResponseEntity.ok(posts);
+    }
+
+    // ⭐ NEW: Following feed (ONLY from followed tutors)
+    @GetMapping("/following-feed")
+    public ResponseEntity<Page<Post>> getFollowingFeed(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication auth) {
+        String userId = auth.getName();
+        Page<Post> posts = postService.getFollowingFeed(userId, page, size);
+        return ResponseEntity.ok(posts);
+    }
+
     // Get feed posts
     @GetMapping("/feed")
     public ResponseEntity<Page<Post>> getFeed(
