@@ -28,6 +28,10 @@ public class CourseMatchingService {
     public List<Activity> getRelevantCourses(AppUser user, String userQuery, int limit) {
         try {
             // Extract user preferences
+            if (userQuery == null || userQuery.trim().isEmpty()) {
+                userQuery = "recommended courses"; // Default fallback
+            }
+
             UserProfile profile = user.getProfile();
             List<String> userInterests = getUserInterests(user, profile);
             Set<String> queryKeywords = extractKeywords(userQuery.toLowerCase());
