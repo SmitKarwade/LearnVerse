@@ -6,19 +6,36 @@ import com.example.learnverse.auth.user.AppUser;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/assistant")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(
+        origins = "*",
+        allowedHeaders = "*",
+        exposedHeaders = {"Content-Type", "Authorization"},
+        methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}
+)
 public class AIAssistantController {
 
     private final StreamingAIService streamingAIService;
     private final UserService userService;
+
+    @GetMapping("/test-auth")
+    public ResponseEntity<Map<String, Object>> testAuth(Authentication auth) {
+        return ResponseEntity.ok(Map.of(
+                "authenticated", true,
+                "userId", auth.getName(),
+                "message", "✅ Your token is valid!"
+        ));
+    }
 
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> chat(
@@ -38,7 +55,7 @@ public class AIAssistantController {
 
         } catch (Exception e) {
             return Flux.just(ServerSentEvent.<String>builder()
-                    .data("Sorry, I encountered an error. Please try again!")
+                    .data("Sorry, I encountered an error: " + e.getMessage())
                     .build());
         }
     }
