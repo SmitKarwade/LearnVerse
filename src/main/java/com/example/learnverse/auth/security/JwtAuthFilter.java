@@ -42,13 +42,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 var jws = jwtUtil.validateAndParse(token);
                 Claims claims = jws.getPayload(); // Get claims from Jws<Claims>
 
-                // **ADD THIS BLOCK HERE - AFTER JWT VALIDATION, BEFORE EXTRACTING USER INFO**
-                if (refreshTokenService.isTokenBlacklisted(token)) {
-                    log.warn("⚠️ Attempted access with blacklisted token");
+                String requestPath = request.getRequestURI();
+                if (requestPath.contains("/refresh") && refreshTokenService.isTokenBlacklisted(token)) {
+                    log.warn("⚠️ Attempted refresh with blacklisted token");
                     response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token has been revoked");
-                    return; // Stop processing
+                    return;
                 }
-                // **END OF NEW BLOCK**
 
                 String userId = claims.getSubject();
                 String role = claims.get("role", String.class);
