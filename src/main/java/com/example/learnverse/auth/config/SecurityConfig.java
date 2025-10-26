@@ -69,6 +69,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/api/community/posts/*/comments/*/like").hasAnyRole("USER", "TUTOR", "ADMIN")
 
+                // Review endpoints
+                .requestMatchers(HttpMethod.POST, "/api/activities/*/reviews").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews").permitAll() // Public read
+                .requestMatchers(HttpMethod.PUT, "/api/reviews/*").hasRole("USER")
+                .requestMatchers(HttpMethod.DELETE, "/api/reviews/*").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/reviews/my-reviews").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews/check").hasRole("USER")
+
+
                 // TUTOR-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/activities/create").hasRole("TUTOR")
                 .requestMatchers(HttpMethod.PUT, "/api/activities/**").hasRole("TUTOR")
