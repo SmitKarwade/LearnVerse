@@ -32,7 +32,7 @@ public class GeminiService {
     }
 
     public Flux<String> streamFromGemini(String prompt) {
-        String url = baseUrl + "/models/gemini-2.0-flash-exp:streamGenerateContent?alt=sse&key=" + apiKey;
+        String url = baseUrl + "/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=" + apiKey;
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(Map.of(

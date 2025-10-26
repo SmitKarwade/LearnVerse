@@ -22,18 +22,18 @@ import java.util.Map;
 @Builder
 public class Activity {
     @Id
-    private String id;
+    private String id; // Required
 
-    private String tutorId;
-    private String tutorName;
+    private String tutorId; // Required
+    private String tutorName; // Required
 
-    private String title;
-    private String description;
-    private String subject;
+    private String title;  // Required
+    private String description;  // Required
+    private String subject;  // Required
     private String classType;
 
     private String activityType;
-    private String mode;
+    private String mode;  // Required
 
     // Nullable if not offline/hybrid
     @Nullable
@@ -58,7 +58,7 @@ public class Activity {
     @Nullable
     private DurationInfo duration;
     @Nullable
-    private Schedule schedule;
+    private Schedule schedule;  // Not Required
     @Nullable
     private EnrollmentInfo enrollmentInfo;
 
@@ -91,7 +91,7 @@ public class Activity {
         @Nullable
         private Coordinates coordinates;
         @Nullable
-        private Integer proximityRadius;
+        private Integer proximityRadius; // Not Required
         @Nullable
         private String landmark;
         @Nullable
@@ -116,29 +116,29 @@ public class Activity {
     @Builder
     public static class VideoContent {
         @Nullable
-        private String platform;
+        private String platform;  // Show only to enrolled user
         @Nullable
-        private String meetingLink;
+        private String meetingLink;  // Show only to enrolled user
         @Nullable
-        private String meetingId;
+        private String meetingId;    // Show only to enrolled user
         @Nullable
-        private String passcode;
+        private String passcode;     // Show only to enrolled user
         @Nullable
-        private List<Video> recordedVideos;
+        private List<Video> recordedVideos; // Show only to enrolled user
         @Nullable
         private Integer totalVideoCount;
         @Nullable
         private Integer totalVideoDuration;
         @Nullable
-        private List<String> streamingQuality;
+        private List<String> streamingQuality; // Not Required
         @Nullable
-        private Boolean downloadAllowed;
+        private Boolean downloadAllowed; // Not Required
         @Nullable
-        private Boolean offlineViewing;
+        private Boolean offlineViewing;  // Not Required
         @Nullable
-        private Boolean subtitlesAvailable;
+        private Boolean subtitlesAvailable;  // Not Required
         @Nullable
-        private List<String> languages;
+        private List<String> languages;  // Not Required
 
         @Data
         @NoArgsConstructor
@@ -216,7 +216,7 @@ public class Activity {
         private Double averageRating;
         private Integer totalReviews;
         @Nullable
-        private Map<String, Integer> ratingDistribution;
+        private Map<String, Integer> ratingDistribution;  // Not required
         @Nullable
         private List<RecentReview> recentReviews;
 
@@ -256,8 +256,8 @@ public class Activity {
     @AllArgsConstructor
     @Builder
     public static class DurationInfo {
-        private Integer totalDuration;
-        private Integer estimatedDuration;
+        private Integer totalDuration; // Not required
+        private Integer estimatedDuration;  // Not Required
         private Integer totalSessions;
         private String durationDescription;
         @Nullable
@@ -300,10 +300,10 @@ public class Activity {
         @Nullable
         private Integer maxCapacity;
         @Nullable
-        private Integer waitlistCount;
+        private Integer waitlistCount; // Not required
         private String enrollmentStatus;
         @Nullable
-        private Boolean autoEnrollment;
+        private Boolean autoEnrollment; // Not required
     }
 
     @Data

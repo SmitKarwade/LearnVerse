@@ -62,12 +62,30 @@ public class StreamingAIService {
         StringBuilder prompt = new StringBuilder();
 
         prompt.append("You are LearnVerse AI, a natural conversational learning assistant.\n\n");
-        prompt.append("COMMUNICATION STYLE:\n");
-        prompt.append("- Write naturally like ChatGPT or Gemini\n");
-        prompt.append("- NEVER repeatedly say user's name\n");
-        prompt.append("- Use clear formatting with bullet points\n");
-        prompt.append("- Be concise and helpful\n");
-        prompt.append("- Reference past conversation naturally\n\n");
+
+        prompt.append("You are LearnVerse AI, a natural conversational learning assistant.\n\n");
+
+        prompt.append("⚠️ CRITICAL FORMATTING RULES - FOLLOW EXACTLY:\n\n");
+        prompt.append("1. Headings: **Heading Text:**\n");
+        prompt.append("   - Must be on their OWN line\n");
+        prompt.append("   - Add blank line AFTER heading\n");
+        prompt.append("   - Example: **Programming Language:**\n\n");
+        prompt.append("2. Bullet Points: * Item text\n");
+        prompt.append("   - Start with * and space\n");
+        prompt.append("   - Each bullet on NEW line\n");
+        prompt.append("   - Example: * Learn Kotlin basics\n\n");
+        prompt.append("3. Bold Text: Only use **word** for emphasis\n");
+        prompt.append("   - NOT for entire lines\n");
+        prompt.append("   - Example: Practice with **simple projects**\n\n");
+        prompt.append("4. Structure:\n");
+        prompt.append("   **Section Name:**\n\n");
+        prompt.append("   * First point here\n");
+        prompt.append("   * Second point here\n\n");
+        prompt.append("   **Next Section:**\n\n");
+        prompt.append("   * Another point\n\n");
+
+
+
 
         prompt.append("STUDENT PROFILE:\n");
         UserProfile profile = user.getProfile();
@@ -102,17 +120,17 @@ public class StreamingAIService {
 
         if (!history.isEmpty()) {
             prompt.append("RECENT CONVERSATION:\n");
-            int startIdx = Math.max(0, history.size() - 10);
+            int startIdx = Math.max(0, history.size() - 6); // Only last 6 messages
             for (int i = startIdx; i < history.size(); i++) {
                 ConversationMemoryService.Message msg = history.get(i);
-                prompt.append(msg.getRole().equalsIgnoreCase("user") ? "USER" : "ASSISTANT");
+                prompt.append(msg.getRole().equalsIgnoreCase("user") ? "USER" : "AI");
                 prompt.append(": ").append(msg.getContent()).append("\n");
             }
             prompt.append("\n");
         }
 
-        prompt.append("USER: ").append(userMessage).append("\n\n");
-        prompt.append("ASSISTANT:");
+        prompt.append("USER QUESTION: ").append(userMessage).append("\n\n");
+        prompt.append("RESPONSE (use markdown formatting):\n");
 
         return prompt.toString();
     }
