@@ -77,6 +77,12 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/reviews/my-reviews").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews/check").hasRole("USER")
 
+                // Activity access endpoints
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/info").permitAll() // Public
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/videos").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/meeting").hasRole("USER")
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/enrollment-status").hasRole("USER")
+
 
                 // TUTOR-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/activities/create").hasRole("TUTOR")
