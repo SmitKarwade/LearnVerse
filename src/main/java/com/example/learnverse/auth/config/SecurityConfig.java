@@ -84,6 +84,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/activities/**").hasRole("TUTOR")
                 .requestMatchers("/api/activities/my-activities").hasRole("TUTOR")
                 .requestMatchers("/api/tutor/**").hasRole("TUTOR")
+                // Video management endpoints (TUTOR only)
+                .requestMatchers("/api/tutor/activities/*/videos/**").hasRole("TUTOR")
+
 
                 // Activities browsing - USER and TUTOR
                 .requestMatchers(HttpMethod.GET, "/api/activities/**").hasAnyRole("USER", "TUTOR")

@@ -6,6 +6,8 @@ import com.example.learnverse.activity.repository.ActivityRepository;
 import com.example.learnverse.activity.filter.ActivityFilterDto;
 import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
+import com.example.learnverse.tutor.model.TutorVerification;
+import com.example.learnverse.tutor.repo.TutorVerificationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -51,6 +53,9 @@ public class ActivityService {
 
     @Autowired
     private QueryParser queryParser;
+
+    @Autowired
+    private TutorVerificationRepository tutorVerificationRepository; // Add this
 
     public Page<Activity> getRecommendedActivities(String naturalQuery, String userId,
                                                    Double userLatitude, Double userLongitude,
@@ -317,11 +322,29 @@ public class ActivityService {
     }
 
 
-
-    // Existing methods...
     public Activity createActivityByTutor(Activity activity, String tutorId) {
         normalizeActivityData(activity);
 
+        // Step 1: Get user details to find email
+        AppUser user = userService.getUserById(tutorId);
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        // Step 2: Find tutor verification by email
+        TutorVerification tutorVerification = tutorVerificationRepository.findByEmail(user.getEmail())
+                .orElseThrow(() -> new RuntimeException("Tutor verification not found. Please complete tutor verification first."));
+
+        // Step 3: Check if tutor is approved
+        if (!tutorVerification.isApproved()) {
+            throw new RuntimeException("Your tutor verification is not approved yet. Current status: " + tutorVerification.getStatus());
+        }
+
+        // Step 4: Auto-set tutor details
+        activity.setTutorId(tutorId); // Store user ID
+        activity.setTutorName(user.getName()); // Get name from verification
+
+        // Handle location coordinates
         if (activity.getLocation() != null && activity.getLocation().getCoordinates() != null) {
             Double lon = activity.getLocation().getCoordinates().getCoordinates().get(0);
             Double lat = activity.getLocation().getCoordinates().getCoordinates().get(1);
@@ -336,13 +359,15 @@ public class ActivityService {
             }
         }
 
-
-        activity.setTutorId(tutorId);
         activity.setCreatedAt(new java.util.Date());
         activity.setUpdatedAt(new java.util.Date());
         activity.setIsActive(true);
+
+        log.info("✅ Activity created by tutor: {} ({})", tutorVerification.getFullName(), user.getEmail());
+
         return activityRepository.save(activity);
     }
+
 
     public List<Activity> getActivitiesForUser(String userId) {
         AppUser user = userService.getUserById(userId);
