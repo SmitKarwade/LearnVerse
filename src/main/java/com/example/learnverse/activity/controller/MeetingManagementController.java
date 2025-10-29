@@ -15,6 +15,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -27,9 +28,6 @@ public class MeetingManagementController {
     private final ActivityService activityService;
     private final MongoTemplate mongoTemplate;
 
-    /**
-     * Add/Update meeting details
-     */
     @PutMapping("/{activityId}/meeting")
     public ResponseEntity<?> updateMeetingDetails(
             @PathVariable String activityId,
@@ -38,7 +36,6 @@ public class MeetingManagementController {
         try {
             String tutorId = auth.getName();
 
-            // Verify ownership
             Activity activity = activityService.getActivityById(activityId);
             if (!activity.getTutorId().equals(tutorId)) {
                 return ResponseEntity.status(403).body(Map.of(
@@ -47,10 +44,16 @@ public class MeetingManagementController {
                 ));
             }
 
-            // Update meeting details
+            // ✅ Initialize videoContent if null
             Query query = new Query(Criteria.where("_id").is(activityId));
             Update update = new Update();
 
+            // Ensure videoContent exists
+            if (activity.getVideoContent() == null) {
+                update.set("videoContent", new Activity.VideoContent());
+            }
+
+            // Update meeting details
             if (request.getPlatform() != null) {
                 update.set("videoContent.platform", request.getPlatform());
             }
@@ -71,15 +74,27 @@ public class MeetingManagementController {
 
             log.info("✅ Meeting details updated for activity: {}", activityId);
 
+            // Build safe response
+            Map<String, Object> meetingInfo = new HashMap<>();
+            if (updated.getVideoContent() != null) {
+                if (updated.getVideoContent().getPlatform() != null) {
+                    meetingInfo.put("platform", updated.getVideoContent().getPlatform());
+                }
+                if (updated.getVideoContent().getMeetingLink() != null) {
+                    meetingInfo.put("meetingLink", updated.getVideoContent().getMeetingLink());
+                }
+                if (updated.getVideoContent().getMeetingId() != null) {
+                    meetingInfo.put("meetingId", updated.getVideoContent().getMeetingId());
+                }
+                if (updated.getVideoContent().getPasscode() != null) {
+                    meetingInfo.put("passcode", updated.getVideoContent().getPasscode());
+                }
+            }
+
             return ResponseEntity.ok(Map.of(
                     "success", true,
                     "message", "Meeting details updated successfully",
-                    "meeting", Map.of(
-                            "platform", updated.getVideoContent().getPlatform(),
-                            "meetingLink", updated.getVideoContent().getMeetingLink(),
-                            "meetingId", updated.getVideoContent().getMeetingId(),
-                            "passcode", updated.getVideoContent().getPasscode()
-                    )
+                    "meeting", meetingInfo
             ));
 
         } catch (Exception e) {
@@ -91,9 +106,6 @@ public class MeetingManagementController {
         }
     }
 
-    /**
-     * Get meeting details (tutor only)
-     */
     @GetMapping("/{activityId}/meeting")
     public ResponseEntity<?> getMeetingDetails(
             @PathVariable String activityId,
@@ -113,19 +125,29 @@ public class MeetingManagementController {
             if (activity.getVideoContent() == null) {
                 return ResponseEntity.ok(Map.of(
                         "success", true,
-                        "meeting", Map.of(),
-                        "message", "No meeting details set"
+                        "message", "No meeting details set",
+                        "meeting", Map.of()
                 ));
+            }
+
+            // Build response with null-safe handling
+            Map<String, Object> meetingInfo = new HashMap<>();
+            if (activity.getVideoContent().getPlatform() != null) {
+                meetingInfo.put("platform", activity.getVideoContent().getPlatform());
+            }
+            if (activity.getVideoContent().getMeetingLink() != null) {
+                meetingInfo.put("meetingLink", activity.getVideoContent().getMeetingLink());
+            }
+            if (activity.getVideoContent().getMeetingId() != null) {
+                meetingInfo.put("meetingId", activity.getVideoContent().getMeetingId());
+            }
+            if (activity.getVideoContent().getPasscode() != null) {
+                meetingInfo.put("passcode", activity.getVideoContent().getPasscode());
             }
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "meeting", Map.of(
-                            "platform", activity.getVideoContent().getPlatform(),
-                            "meetingLink", activity.getVideoContent().getMeetingLink(),
-                            "meetingId", activity.getVideoContent().getMeetingId(),
-                            "passcode", activity.getVideoContent().getPasscode()
-                    )
+                    "meeting", meetingInfo
             ));
 
         } catch (Exception e) {

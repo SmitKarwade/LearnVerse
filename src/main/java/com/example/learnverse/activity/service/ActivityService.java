@@ -261,24 +261,76 @@ public class ActivityService {
         normalizeActivityData(updatedActivity);
 
         updatedActivity.setId(activityId);
+
+        // ✅ PRESERVE: Always keep original tutor info (never allow changing)
         updatedActivity.setTutorId(existingActivity.getTutorId());
+        updatedActivity.setTutorName(existingActivity.getTutorName());
+
+        // ✅ PRESERVE: Keep instructor details if not provided in update
+        if (updatedActivity.getInstructorDetails() == null) {
+            updatedActivity.setInstructorDetails(existingActivity.getInstructorDetails());
+        }
+
+        // ✅ PRESERVE: Keep enrollment info if not provided
+        if (updatedActivity.getEnrollmentInfo() == null) {
+            updatedActivity.setEnrollmentInfo(existingActivity.getEnrollmentInfo());
+        } else {
+            // If enrollmentInfo is provided, preserve enrolledCount (it's auto-managed)
+            if (updatedActivity.getEnrollmentInfo().getEnrolledCount() == null &&
+                    existingActivity.getEnrollmentInfo() != null) {
+                updatedActivity.getEnrollmentInfo().setEnrolledCount(
+                        existingActivity.getEnrollmentInfo().getEnrolledCount()
+                );
+            }
+        }
+
+        // ✅ PRESERVE: Keep video content if not provided
+        if (updatedActivity.getVideoContent() == null) {
+            updatedActivity.setVideoContent(existingActivity.getVideoContent());
+        } else if (updatedActivity.getVideoContent().getRecordedVideos() == null &&
+                existingActivity.getVideoContent() != null) {
+            // Preserve existing videos if new request doesn't include them
+            updatedActivity.getVideoContent().setRecordedVideos(
+                    existingActivity.getVideoContent().getRecordedVideos()
+            );
+            updatedActivity.getVideoContent().setTotalVideoCount(
+                    existingActivity.getVideoContent().getTotalVideoCount()
+            );
+            updatedActivity.getVideoContent().setTotalVideoDuration(
+                    existingActivity.getVideoContent().getTotalVideoDuration()
+            );
+        }
+
+        // ✅ PRESERVE: Keep reviews (users can't update reviews via activity update)
+        if (updatedActivity.getReviews() == null) {
+            updatedActivity.setReviews(existingActivity.getReviews());
+        }
+
+        // ✅ PRESERVE: Timestamps
         updatedActivity.setCreatedAt(existingActivity.getCreatedAt());
         updatedActivity.setUpdatedAt(new java.util.Date());
+        updatedActivity.setPublishedAt(existingActivity.getPublishedAt());
 
         // Handle location coordinates if provided
         if (updatedActivity.getLocation() != null && updatedActivity.getLocation().getCoordinates() != null) {
-            Double lon = updatedActivity.getLocation().getCoordinates().getCoordinates().get(0);
-            Double lat = updatedActivity.getLocation().getCoordinates().getCoordinates().get(1);
+            if (updatedActivity.getLocation().getCoordinates().getCoordinates() != null &&
+                    updatedActivity.getLocation().getCoordinates().getCoordinates().size() >= 2) {
 
-            if (lat != null && lon != null) {
-                Activity.Location.Coordinates geoJsonCoords = Activity.Location.Coordinates.builder()
-                        .type("Point")
-                        .coordinates(Arrays.asList(lon, lat))
-                        .build();
+                Double lon = updatedActivity.getLocation().getCoordinates().getCoordinates().get(0);
+                Double lat = updatedActivity.getLocation().getCoordinates().getCoordinates().get(1);
 
-                updatedActivity.getLocation().setCoordinates(geoJsonCoords);
+                if (lat != null && lon != null) {
+                    Activity.Location.Coordinates geoJsonCoords = Activity.Location.Coordinates.builder()
+                            .type("Point")
+                            .coordinates(Arrays.asList(lon, lat))
+                            .build();
+
+                    updatedActivity.getLocation().setCoordinates(geoJsonCoords);
+                }
             }
         }
+
+        log.info("✅ Activity updated: {} by tutor: {}", activityId, updatedActivity.getTutorId());
 
         return activityRepository.save(updatedActivity);
     }
@@ -323,47 +375,96 @@ public class ActivityService {
 
 
     public Activity createActivityByTutor(Activity activity, String tutorId) {
+        // ✅ Normalize data FIRST (before any modifications)
         normalizeActivityData(activity);
 
-        // Step 1: Get user details to find email
+        // Get user details
         AppUser user = userService.getUserById(tutorId);
         if (user == null) {
             throw new RuntimeException("User not found");
         }
 
-        // Step 2: Find tutor verification by email
-        TutorVerification tutorVerification = tutorVerificationRepository.findByEmail(user.getEmail())
-                .orElseThrow(() -> new RuntimeException("Tutor verification not found. Please complete tutor verification first."));
+        // Get tutor verification
+        TutorVerification verification = tutorVerificationRepository.findByEmail(user.getEmail())
+                .orElseThrow(() -> new RuntimeException("Tutor verification not found"));
 
-        // Step 3: Check if tutor is approved
-        if (!tutorVerification.isApproved()) {
-            throw new RuntimeException("Your tutor verification is not approved yet. Current status: " + tutorVerification.getStatus());
+        if (!verification.isApproved()) {
+            throw new RuntimeException("Your tutor verification is not approved yet");
         }
 
-        // Step 4: Auto-set tutor details
-        activity.setTutorId(tutorId); // Store user ID
-        activity.setTutorName(user.getName()); // Get name from verification
-
-        // Handle location coordinates
-        if (activity.getLocation() != null && activity.getLocation().getCoordinates() != null) {
-            Double lon = activity.getLocation().getCoordinates().getCoordinates().get(0);
-            Double lat = activity.getLocation().getCoordinates().getCoordinates().get(1);
-
-            if (lat != null && lon != null) {
-                Activity.Location.Coordinates geoJsonCoords = Activity.Location.Coordinates.builder()
-                        .type("Point")
-                        .coordinates(Arrays.asList(lon, lat))
-                        .build();
-
-                activity.getLocation().setCoordinates(geoJsonCoords);
-            }
+        // ✅ Auto-populate instructorDetails from verification (but don't overwrite existing data)
+        if (activity.getInstructorDetails() == null) {
+            activity.setInstructorDetails(new Activity.InstructorDetails());
         }
 
+        // Set fields from verification
+        activity.getInstructorDetails().setBio(verification.getBio());
+        activity.getInstructorDetails().setQualifications(verification.getQualifications());
+        activity.getInstructorDetails().setExperience(verification.getExperience());
+        activity.getInstructorDetails().setSpecializations(verification.getSpecializations());
+        activity.getInstructorDetails().setProfileImage(verification.getProfilePicturePath());
+
+        // Initialize social proof if not exists
+        if (activity.getInstructorDetails().getSocialProof() == null) {
+            activity.getInstructorDetails().setSocialProof(new Activity.InstructorDetails.SocialProof());
+        }
+        activity.getInstructorDetails().getSocialProof().setStudentsCount(0);
+        activity.getInstructorDetails().getSocialProof().setTotalStudentsTaught(0);
+        activity.getInstructorDetails().getSocialProof().setCoursesCount(0);
+
+        // Set tutor details
+        activity.setTutorId(tutorId);
+        activity.setTutorName(verification.getFullName());
+
+        // ✅ Initialize enrollmentInfo (preserve max capacity if provided)
+        if (activity.getEnrollmentInfo() == null) {
+            activity.setEnrollmentInfo(new Activity.EnrollmentInfo());
+        }
+
+        // Always set enrolledCount to 0 for new activity
+        activity.getEnrollmentInfo().setEnrolledCount(0);
+
+        // Set status if not provided
+        if (activity.getEnrollmentInfo().getEnrollmentStatus() == null ||
+                activity.getEnrollmentInfo().getEnrollmentStatus().isEmpty()) {
+            activity.getEnrollmentInfo().setEnrollmentStatus("open");
+        }
+
+        if (activity.getContactInfo() == null) {
+            activity.setContactInfo(new Activity.ContactInfo());
+        }
+        activity.getContactInfo().setEmail(verification.getEmail());
+        activity.getContactInfo().setWhatsappNumber(verification.getPhone());
+
+        // ✅ Set timestamps
         activity.setCreatedAt(new java.util.Date());
         activity.setUpdatedAt(new java.util.Date());
-        activity.setIsActive(true);
 
-        log.info("✅ Activity created by tutor: {} ({})", tutorVerification.getFullName(), user.getEmail());
+        // ✅ Set active status if not provided
+        if (activity.getIsActive() == null) {
+            activity.setIsActive(true);
+        }
+
+        // ✅ Set public status if not provided
+        if (activity.getIsPublic() == null) {
+            activity.setIsPublic(true);
+        }
+
+        // ✅ Set featured if not provided
+        if (activity.getFeatured() == null) {
+            activity.setFeatured(false);
+        }
+
+        // ✅ Initialize videoContent if mode is ONLINE and it's null
+        if (("online".equalsIgnoreCase(activity.getMode()) ||
+                "recorded_course".equalsIgnoreCase(activity.getActivityType())) &&
+                activity.getVideoContent() == null) {
+            activity.setVideoContent(new Activity.VideoContent());
+            activity.getVideoContent().setTotalVideoCount(0);
+            activity.getVideoContent().setTotalVideoDuration(0);
+        }
+
+        log.info("✅ Activity created with auto-populated instructor details");
 
         return activityRepository.save(activity);
     }

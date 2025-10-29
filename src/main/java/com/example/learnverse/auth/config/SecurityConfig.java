@@ -3,6 +3,8 @@ package com.example.learnverse.auth.config;
 import com.example.learnverse.auth.security.JwtAuthFilter;
 import com.example.learnverse.auth.security.RestAccessDeniedHandler;
 import com.example.learnverse.auth.security.RestAuthEntryPoint;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,19 +37,28 @@ public class SecurityConfig {
 
         http.exceptionHandling(ex -> ex
                 .authenticationEntryPoint(authEntryPoint)
-                .accessDeniedHandler(accessDeniedHandler));
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    // ✅ Don't handle errors after response is committed
+                    if (!response.isCommitted()) {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.getWriter().write("Access Denied");
+                    }
+                }));
 
         http.authorizeHttpRequests(auth -> auth
-                // PUBLIC endpoints
+                // ✅ CRITICAL: Allow ASYNC dispatches to bypass security
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
 
+                // PUBLIC endpoints
+                .requestMatchers("/api/auth/**", "/error").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/auth/**", "/actuator/health", "/api/hello", "/api/test/**").permitAll()
 
-                // ⭐ ADMIN ENDPOINTS - PUT THESE FIRST (MOST SPECIFIC)
+                // ADMIN ENDPOINTS
                 .requestMatchers("/api/tutor-verification/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/files/**").hasRole("ADMIN")
 
-                // USER-only endpoints (tutor verification registration)
+                // USER-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/tutor-verification/register").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/tutor-verification/status/**").hasRole("USER")
 
@@ -59,7 +70,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/community/follow/*").hasAnyRole("USER", "TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/community/follow/**").hasAnyRole("USER", "TUTOR", "ADMIN")
 
-                // Community posts - TUTOR creates, everyone views
+                // Community posts
                 .requestMatchers(HttpMethod.POST, "/api/community/posts").hasAnyRole("TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/community/posts/*").hasAnyRole("TUTOR", "ADMIN")
@@ -71,18 +82,17 @@ public class SecurityConfig {
 
                 // Review endpoints
                 .requestMatchers(HttpMethod.POST, "/api/activities/*/reviews").hasRole("USER")
-                .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews").permitAll() // Public read
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews").permitAll()
                 .requestMatchers(HttpMethod.PUT, "/api/reviews/*").hasRole("USER")
                 .requestMatchers(HttpMethod.DELETE, "/api/reviews/*").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/reviews/my-reviews").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/activities/*/reviews/check").hasRole("USER")
 
                 // Activity access endpoints
-                .requestMatchers(HttpMethod.GET, "/api/activities/*/info").permitAll() // Public
+                .requestMatchers(HttpMethod.GET, "/api/activities/*/info").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/activities/*/videos").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/activities/*/meeting").hasRole("USER")
                 .requestMatchers(HttpMethod.GET, "/api/activities/*/enrollment-status").hasRole("USER")
-
 
                 // TUTOR-only endpoints
                 .requestMatchers(HttpMethod.POST, "/api/activities/create").hasRole("TUTOR")
@@ -90,11 +100,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/activities/**").hasRole("TUTOR")
                 .requestMatchers("/api/activities/my-activities").hasRole("TUTOR")
                 .requestMatchers("/api/tutor/**").hasRole("TUTOR")
-                // Video management endpoints (TUTOR only)
                 .requestMatchers("/api/tutor/activities/*/videos/**").hasRole("TUTOR")
+                .requestMatchers("/api/tutor/activities/*/enrollment/**").hasRole("TUTOR")
 
-
-                // Activities browsing - USER and TUTOR
+                // Activities browsing
                 .requestMatchers(HttpMethod.GET, "/api/activities/**").hasAnyRole("USER", "TUTOR")
                 .requestMatchers("/api/activities/filter").hasAnyRole("USER", "TUTOR")
                 .requestMatchers("/api/activities/filter/**").hasAnyRole("USER", "TUTOR")

@@ -65,24 +65,28 @@ public class StreamingAIService {
 
         prompt.append("You are LearnVerse AI, a natural conversational learning assistant.\n\n");
 
-        prompt.append("⚠️ CRITICAL FORMATTING RULES - FOLLOW EXACTLY:\n\n");
-        prompt.append("1. Headings: **Heading Text:**\n");
-        prompt.append("   - Must be on their OWN line\n");
-        prompt.append("   - Add blank line AFTER heading\n");
-        prompt.append("   - Example: **Programming Language:**\n\n");
-        prompt.append("2. Bullet Points: * Item text\n");
-        prompt.append("   - Start with * and space\n");
-        prompt.append("   - Each bullet on NEW line\n");
-        prompt.append("   - Example: * Learn Kotlin basics\n\n");
-        prompt.append("3. Bold Text: Only use **word** for emphasis\n");
-        prompt.append("   - NOT for entire lines\n");
-        prompt.append("   - Example: Practice with **simple projects**\n\n");
-        prompt.append("4. Structure:\n");
-        prompt.append("   **Section Name:**\n\n");
-        prompt.append("   * First point here\n");
-        prompt.append("   * Second point here\n\n");
-        prompt.append("   **Next Section:**\n\n");
-        prompt.append("   * Another point\n\n");
+        // ✅ FORMATTING RULES
+        prompt.append("CRITICAL FORMATTING RULES:\n\n");
+        prompt.append("1. Headings:\n");
+        prompt.append("   Format: **Heading Text:**\n");
+        prompt.append("   - On its own line\n");
+        prompt.append("   - Add blank line after\n\n");
+
+        prompt.append("2. Bullet Points:\n");
+        prompt.append("   Format: *   Bullet text\n");
+        prompt.append("   - Start with * and THREE spaces\n");
+        prompt.append("   - Each on new line\n\n");
+
+        prompt.append("3. Bold Text:\n");
+        prompt.append("   Format: **word**\n");
+        prompt.append("   - Only for emphasis\n");
+        prompt.append("   - Not for entire sentences\n\n");
+
+        prompt.append("EXAMPLE FORMAT:\n");
+        prompt.append("**Android Development:**\n\n");
+        prompt.append("*   Learn **Kotlin** programming language\n");
+        prompt.append("*   Build simple apps for practice\n");
+        prompt.append("*   Study **UI design** principles\n\n");
 
 
 

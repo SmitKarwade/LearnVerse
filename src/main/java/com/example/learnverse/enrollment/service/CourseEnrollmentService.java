@@ -1,7 +1,9 @@
 // Create: src/main/java/com/example/learnverse/enrollment/service/CourseEnrollmentService.java
 package com.example.learnverse.enrollment.service;
 
+import com.example.learnverse.activity.repository.ActivityRepository;
 import com.example.learnverse.auth.repo.UserRepository;
+import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
 import com.example.learnverse.auth.user.UserProfile;
 import com.example.learnverse.activity.model.Activity;
@@ -14,7 +16,12 @@ import com.example.learnverse.learning.model.LearningActivity;
 import com.example.learnverse.learning.repository.LearningActivityRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,6 +36,9 @@ public class CourseEnrollmentService {
     private final LearningActivityRepository learningActivityRepository;
     private final UserRepository userRepository;
     private final ActivityService activityService;
+    private final MongoTemplate mongoTemplate;
+    private final ActivityRepository activityRepository;
+    private final UserService userService;
 
     /**
      * Enroll user in a course
@@ -99,7 +109,8 @@ public class CourseEnrollmentService {
 
             enrollment = enrollmentRepository.save(enrollment);
 
-
+            incrementEnrollmentCount(request.getActivityId());
+            updateTutorStatistics(activity.getTutorId());
 
             if (user.getProfile() != null && user.getProfile().getCurrentFocusArea() == null) {
                 user.getProfile().setCurrentFocusArea(activity.getSubject());
@@ -169,10 +180,70 @@ public class CourseEnrollmentService {
         enrollment.setFeedback(reason);
         enrollment.setUpdatedAt(LocalDateTime.now());
 
+        decrementEnrollmentCount(enrollment.getActivityId());
+        updateTutorStatistics(enrollment.getTutorId());
+
         log.info("📤 User {} dropped course: {} (Reason: {})",
                 enrollment.getUserId(), enrollment.getActivityTitle(), reason);
 
         return enrollmentRepository.save(enrollment);
+    }
+
+
+    /**
+     * Auto-increment enrollment count
+     */
+    private void incrementEnrollmentCount(String activityId) {
+        Query query = new Query(Criteria.where("_id").is(activityId));
+        Update update = new Update().inc("enrollmentInfo.enrolledCount", 1);
+        mongoTemplate.updateFirst(query, update, Activity.class);
+
+        log.info("📊 Enrollment count incremented for activity: {}", activityId);
+    }
+
+    /**
+     * Auto-decrement enrollment count
+     */
+    private void decrementEnrollmentCount(String activityId) {
+        Query query = new Query(Criteria.where("_id").is(activityId));
+        Update update = new Update().inc("enrollmentInfo.enrolledCount", -1);
+        mongoTemplate.updateFirst(query, update, Activity.class);
+
+        log.info("📊 Enrollment count decremented for activity: {}", activityId);
+    }
+
+    /**
+     * Auto-update tutor statistics
+     */
+    private void updateTutorStatistics(String tutorId) {
+        // Count total enrolled students across all tutor's activities
+        List<Activity> tutorActivities = activityRepository.findByTutorId(tutorId);
+
+        int totalStudents = tutorActivities.stream()
+                .mapToInt(a -> a.getEnrollmentInfo() != null && a.getEnrollmentInfo().getEnrolledCount() != null
+                        ? a.getEnrollmentInfo().getEnrolledCount()
+                        : 0)
+                .sum();
+
+        int totalCourses = (int) tutorActivities.stream()
+                .filter(Activity::getIsActive)
+                .count();
+
+        // Update all activities' instructor details
+        for (Activity activity : tutorActivities) {
+            if (activity.getInstructorDetails() != null &&
+                    activity.getInstructorDetails().getSocialProof() != null) {
+
+                Query query = new Query(Criteria.where("_id").is(activity.getId()));
+                Update update = new Update()
+                        .set("instructorDetails.socialProof.studentsCount", totalStudents)
+                        .set("instructorDetails.socialProof.coursesCount", totalCourses);
+
+                mongoTemplate.updateFirst(query, update, Activity.class);
+            }
+        }
+
+        log.info("📊 Tutor statistics updated - Students: {}, Courses: {}", totalStudents, totalCourses);
     }
 
     /**
@@ -210,21 +281,6 @@ public class CourseEnrollmentService {
         return enrollmentRepository.findByActivityIdOrderByEnrolledAtDesc(activityId);
     }
 
-    /**
-     * Drop/cancel enrollment
-     */
-    public CourseEnrollment dropEnrollment(String enrollmentId, String reason) {
-        CourseEnrollment enrollment = enrollmentRepository.findById(enrollmentId)
-                .orElseThrow(() -> new RuntimeException("Enrollment not found"));
-
-        enrollment.setStatus(EnrollmentStatus.DROPPED);
-        enrollment.setUpdatedAt(LocalDateTime.now());
-
-        // Log drop activity
-        recordLearningActivity(enrollment, "DROPPED", "Course dropped: " + reason, 0);
-
-        return enrollmentRepository.save(enrollment);
-    }
 
     /**
      * Get enrollment statistics for analytics

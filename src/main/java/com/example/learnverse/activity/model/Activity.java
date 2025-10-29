@@ -3,10 +3,7 @@ package com.example.learnverse.activity.model;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
-import lombok.Builder;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.lang.Nullable;
@@ -34,6 +31,10 @@ public class Activity {
 
     private String activityType;
     private String mode;  // Required
+
+    @Getter
+    @Setter
+    private String bannerImageUrl;
 
     // Nullable if not offline/hybrid
     @Nullable
@@ -203,6 +204,7 @@ public class Activity {
         @Builder
         public static class SocialProof {
             private Integer studentsCount;
+            private Integer totalStudentsTaught;
             private Integer coursesCount;
             private Integer yearsTeaching;
         }

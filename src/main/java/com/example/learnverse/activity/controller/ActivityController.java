@@ -1,12 +1,18 @@
 package com.example.learnverse.activity.controller;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
+import com.cloudinary.utils.ObjectUtils;
 import com.example.learnverse.activity.model.Activity;
 import com.example.learnverse.activity.model.PagedResponse;
+import com.example.learnverse.activity.repository.ActivityRepository;
 import com.example.learnverse.activity.service.ActivityService;
 import com.example.learnverse.activity.filter.ActivityFilterDto;
 import com.example.learnverse.auth.annotation.RequireApprovedTutor;
+import com.example.learnverse.community.cloudinary.CloudinaryService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,7 +20,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,6 +35,12 @@ import java.util.stream.Collectors;
 public class ActivityController {
 
     private final ActivityService activityService;
+
+    @Autowired
+    private ActivityRepository activityRepository;
+
+    @Autowired
+    private Cloudinary cloudinary;
 
     @Data
     public static class NaturalSearchRequest {
@@ -359,4 +376,57 @@ public class ActivityController {
             return ResponseEntity.badRequest().body("Error searching activities: " + e.getMessage());
         }
     }
+
+    // ActivityController.java
+    @PutMapping("/tutor/activities/{activityId}/banner")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<?> uploadBanner(
+            @PathVariable String activityId,
+            @RequestParam MultipartFile banner,
+            Authentication auth) {
+
+        try {
+            String tutorId = auth.getName();
+            Activity activity = activityService.getActivityById(activityId);
+
+            if (!activity.getTutorId().equals(tutorId)) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "success", false,
+                        "error", "You can only update your own activities"
+                ));
+            }
+
+            // Upload to Cloudinary
+            Map uploadResult = cloudinary.uploader().upload(
+                    banner.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "learnverse/activity-banners",
+                            "public_id", activityId + "/banner_" + UUID.randomUUID(),
+                            "resource_type", "image",
+                            "transformation", new Transformation()
+                                    .width(1200).height(300)
+                                    .crop("fill")
+                                    .quality("auto")
+                    )
+            );
+
+            String bannerUrl = (String) uploadResult.get("secure_url");
+            activity.setBannerImageUrl(bannerUrl);
+            activity.setUpdatedAt(new Date());
+
+            activityRepository.save(activity);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "bannerUrl", bannerUrl
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
 }

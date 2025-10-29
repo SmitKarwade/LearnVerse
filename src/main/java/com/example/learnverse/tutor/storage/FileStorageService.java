@@ -1,5 +1,9 @@
 package com.example.learnverse.tutor.storage;
 
+import com.cloudinary.Cloudinary;
+import com.cloudinary.Transformation;
+import com.cloudinary.utils.ObjectUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -12,12 +16,16 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class FileStorageService {
 
     private final Path fileStorageLocation;
+
+    @Autowired
+    private Cloudinary cloudinary;
 
     public FileStorageService(@Value("${app.file.upload-dir:./uploads}") String uploadDir) {
         this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
@@ -29,6 +37,9 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * Store document files (ID, certificate) to local storage
+     */
     public String storeFile(MultipartFile file, String tutorId, String fileType) {
         // Create tutor-specific directory
         Path tutorDirectory = this.fileStorageLocation.resolve("tutors").resolve(tutorId);
@@ -50,7 +61,7 @@ public class FileStorageService {
         Path targetLocation = tutorDirectory.resolve(storedFileName);
 
         try {
-            // Copy file to the target location (Replacing existing file with the same name)
+            // Copy file to the target location
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
             // Return relative path for storage in database
@@ -60,33 +71,79 @@ public class FileStorageService {
         }
     }
 
-    public void deleteFile(String filePath) {
+    /**
+     * ✅ Store profile picture to Cloudinary (optimized for images)
+     */
+    public String storeProfilePicture(MultipartFile file, String verificationId) throws IOException {
         try {
-            Path file = this.fileStorageLocation.resolve(filePath).normalize();
-            Files.deleteIfExists(file);
-        } catch (IOException ex) {
-            // Log the exception but don't throw - file deletion is not critical
-            System.err.println("Could not delete file: " + filePath);
+            // Validate it's an image
+            if (file.getContentType() == null || !file.getContentType().startsWith("image/")) {
+                throw new IOException("Profile picture must be an image file (JPEG, JPG, or PNG)");
+            }
+
+            String fileName = "profile_" + UUID.randomUUID().toString();
+
+            // Upload to Cloudinary with image transformations
+            Map uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "learnverse/tutor-profiles",
+                            "public_id", verificationId + "/" + fileName,
+                            "resource_type", "image",
+                            "transformation", new Transformation()
+                                    .width(400).height(400)
+                                    .crop("fill")
+                                    .gravity("face")
+                                    .quality("auto")
+                                    .fetchFormat("auto")
+                    )
+            );
+
+            // Return the Cloudinary secure URL
+            return (String) uploadResult.get("secure_url");
+
+        } catch (Exception e) {
+            throw new IOException("Failed to store profile picture: " + e.getMessage(), e);
         }
     }
 
-    // Add to your FileStorageService
+    public void deleteCloudinaryImage(String publicId) {
+        try {
+            if (publicId != null && !publicId.isEmpty()) {
+                cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+                System.out.println("✅ Deleted Cloudinary image: " + publicId);
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to delete Cloudinary image: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Delete local verification files
+     */
     public void deleteVerificationFiles(String verificationId) {
         try {
             Path tutorDir = fileStorageLocation.resolve("tutors").resolve(verificationId);
             if (Files.exists(tutorDir)) {
-                // Delete all files in the tutor's directory
                 Files.walk(tutorDir)
                         .sorted(Comparator.reverseOrder())
                         .map(Path::toFile)
                         .forEach(File::delete);
             }
         } catch (Exception e) {
-            // Log but don't throw - file cleanup is not critical
             System.err.println("Failed to delete verification files for " + verificationId + ": " + e.getMessage());
         }
-    }
 
+        // ✅ Also delete from Cloudinary
+        try {
+            cloudinary.api().deleteResourcesByPrefix(
+                    "learnverse/tutor-profiles/" + verificationId,
+                    ObjectUtils.emptyMap()
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to delete Cloudinary files: " + e.getMessage());
+        }
+    }
 
     public Path getFileStorageLocation() {
         return fileStorageLocation;

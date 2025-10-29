@@ -1,18 +1,24 @@
 package com.example.learnverse.tutor.controller;
 
 
+import com.example.learnverse.auth.refresh.RefreshToken;
+import com.example.learnverse.auth.refresh.RefreshTokenService;
 import com.example.learnverse.auth.service.AuthService;
+import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.example.learnverse.tutor.service.TutorVerificationService;
 import com.example.learnverse.auth.jwt.JwtUtil; // Your existing JWT utility
 import com.example.learnverse.tutor.model.TutorVerification;
 import com.example.learnverse.tutor.enumcl.VerificationStatus;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -32,43 +38,62 @@ public class TutorVerificationController {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private TutorVerificationService tutorVerificationService;
+
+    @Autowired
+    private RefreshTokenService refreshTokenService;
+
     /**
      * Submit tutor verification request
      */
-    @PostMapping("/register")
+    @PostMapping("/submit")
     public ResponseEntity<?> registerTutor(
-            HttpServletRequest request,
-            @RequestParam(required = false) String email,
-            @RequestParam(required = false) String fullName,
-            @RequestParam(required = false) String phone,
-            @RequestParam(required = false) MultipartFile idDocument,
-            @RequestParam(required = false) MultipartFile certificate,
-            @RequestParam(required = false) Boolean termsAccepted) {
+            @RequestParam String email,
+            @RequestParam String fullName,
+            @RequestParam String phone,
+            @RequestParam String bio,
+            @RequestParam List<String> qualifications,
+            @RequestParam String experience,
+            @RequestParam List<String> specializations,
+            @RequestParam MultipartFile profilePicture,
+            @RequestParam MultipartFile idDocument,
+            @RequestParam MultipartFile certificate,
+            @RequestParam Boolean termsAccepted,
+            Authentication auth) {
 
         try {
-            // Validate terms acceptance
-            if (termsAccepted == null || !termsAccepted) {
-                return ResponseEntity.badRequest()
-                        .body(createErrorResponse("Terms and conditions must be accepted"));
+            String userId = auth.getName();
+            AppUser user = userService.getUserById(userId);
+
+            if (!user.getEmail().equals(email)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "error", "Email must match your account email"
+                ));
             }
 
-            // Create verification request
-            TutorVerification verification = verificationService.createVerificationRequest(
-                    email, fullName, phone, idDocument, certificate, termsAccepted);
+            TutorVerification verification = tutorVerificationService.createVerificationRequest(
+                    email, fullName, phone, bio, qualifications, experience, specializations, profilePicture,
+                    idDocument, certificate, termsAccepted
+            );
 
-            // Response for successful registration
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Verification request submitted successfully");
-            response.put("verificationId", verification.getId());
-            response.put("status", verification.getStatus().name());
-            response.put("submittedAt", verification.getCreatedAt());
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Tutor verification submitted successfully",
+                    "verificationId", verification.getId(),
+                    "status", verification.getStatus(),
+                    "profilePictureUrl", verification.getProfilePicturePath()
+            ));
 
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(createErrorResponse(e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         }
     }
 
@@ -120,22 +145,24 @@ public class TutorVerificationController {
 
     @PutMapping("/admin/approve/{verificationId}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> approveVerification(@PathVariable String verificationId) {
+    public ResponseEntity<?> approveVerification(
+            @PathVariable String verificationId,
+            HttpServletRequest request) { // ✅ Add HttpServletRequest
         try {
-            System.out.println("=== APPROVAL PROCESS START ===");
+            System.out.println("✅ APPROVAL PROCESS START");
             System.out.println("Verification ID: " + verificationId);
 
             TutorVerification verification = verificationService.approveVerification(verificationId);
-            System.out.println("✅ Verification approved in DB");
+            System.out.println("Verification approved in DB");
 
             // Upgrade user role from USER to TUTOR
             AppUser user = authService.getUserByEmail(verification.getEmail());
-            System.out.println("✅ Found user: " + user.getEmail());
+            System.out.println("Found user: " + user.getEmail());
 
             authService.upgradeUserToTutor(user.getId());
-            System.out.println("✅ User upgraded to TUTOR");
+            System.out.println("User upgraded to TUTOR");
 
-            // Generate NEW JWT token with TUTOR role
+            // ✅ Generate access token with TUTOR role
             Map<String, Object> claims = new HashMap<>();
             claims.put("role", "TUTOR");
             claims.put("status", "APPROVED");
@@ -143,22 +170,29 @@ public class TutorVerificationController {
             claims.put("fullName", verification.getFullName());
             claims.put("email", verification.getEmail());
 
-            String jwtToken = jwtUtil.generateAccessToken(user.getId(), claims);
-            System.out.println("✅ New JWT token generated");
+            String accessToken = jwtUtil.generateAccessToken(user.getId(), claims);
+
+            // ✅ CORRECT: Generate refresh token using RefreshTokenService
+            String deviceInfo = getDeviceInfo(request);
+            RefreshToken refreshTokenObj = refreshTokenService.createRefreshToken(user.getId(), deviceInfo);
+
+            System.out.println("New tokens generated");
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "Tutor verification approved successfully");
             response.put("tutorEmail", verification.getEmail());
-            response.put("jwtToken", jwtToken);
-            response.put("tokenExpiresIn", jwtUtil.getAccessExpSeconds());
+            response.put("accessToken", accessToken);
+            response.put("refreshToken", refreshTokenObj.getToken()); // ✅ Get token string
+            response.put("tokenType", "Bearer");
+            response.put("accessTokenExpiresIn", jwtUtil.getAccessExpSeconds());
+            response.put("refreshTokenExpiresIn", calculateRefreshTokenExpSeconds(refreshTokenObj));
 
-            System.out.println("=== APPROVAL PROCESS SUCCESS ===");
-
+            System.out.println("✅ APPROVAL PROCESS SUCCESS");
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            System.err.println("=== APPROVAL PROCESS FAILED ===");
+            System.err.println("❌ APPROVAL PROCESS FAILED");
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.badRequest()
@@ -229,14 +263,98 @@ public class TutorVerificationController {
     }
 
     /**
+     * Update profile picture (Tutor only)
+     */
+    @PutMapping("/update-profile-picture")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<?> updateProfilePicture(
+            @RequestParam MultipartFile profilePicture,
+            Authentication auth) {
+
+        try {
+            String userId = auth.getName();
+            AppUser user = userService.getUserById(userId);
+
+            TutorVerification verification = verificationService.updateProfilePicture(
+                    user.getEmail(),
+                    profilePicture
+            );
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Profile picture updated successfully",
+                    "profilePictureUrl", verification.getProfilePicturePath(),
+                    "updatedAt", verification.getUpdatedAt()
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+    /**
+     * Get current tutor profile picture
+     */
+    @GetMapping("/profile-picture")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<?> getProfilePicture(Authentication auth) {
+        try {
+            String userId = auth.getName();
+            AppUser user = userService.getUserById(userId);
+
+            TutorVerification verification = verificationService.getVerificationByEmail(user.getEmail())
+                    .orElseThrow(() -> new RuntimeException("Tutor verification not found"));
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "profilePicture", Map.of(
+                            "url", verification.getProfilePicturePath(),
+                            "originalName", verification.getProfilePictureOriginalName(),
+                            "updatedAt", verification.getUpdatedAt()
+                    )
+            ));
+
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
+
+    /**
+     * Helper method to map verification with document access links
+     */
+    /**
      * Helper method to map verification with document access links
      */
     private Map<String, Object> mapVerificationWithDocumentLinks(TutorVerification verification) {
         Map<String, Object> verificationData = new HashMap<>();
+
+        // Basic info
         verificationData.put("id", verification.getId());
         verificationData.put("email", verification.getEmail());
         verificationData.put("fullName", verification.getFullName());
         verificationData.put("phone", verification.getPhone());
+
+        // ✅ ADD THESE QUALIFICATION FIELDS
+        verificationData.put("bio", verification.getBio());
+        verificationData.put("qualifications", verification.getQualifications());
+        verificationData.put("experience", verification.getExperience());
+        verificationData.put("specializations", verification.getSpecializations());
+
+        if (verification.getProfilePicturePath() != null) {
+            verificationData.put("profilePicture", Map.of(
+                    "url", verification.getProfilePicturePath(),
+                    "originalName", verification.getProfilePictureOriginalName()
+            ));
+        }
+
+        // Status info
         verificationData.put("status", verification.getStatus().name());
         verificationData.put("statusDescription", verification.getStatus().getDescription());
         verificationData.put("termsAccepted", verification.getTermsAccepted());
@@ -271,6 +389,7 @@ public class TutorVerificationController {
         return verificationData;
     }
 
+
     /**
      * Helper method for JWT token validation (for future use)
      */
@@ -296,4 +415,23 @@ public class TutorVerificationController {
         error.put("timestamp", System.currentTimeMillis());
         return error;
     }
+
+    /**
+     * Get device info from request
+     */
+    private String getDeviceInfo(HttpServletRequest request) {
+        String userAgent = request.getHeader("User-Agent");
+        String remoteAddr = request.getRemoteAddr();
+        return (userAgent != null ? userAgent : "Unknown") + " - " + remoteAddr;
+    }
+
+    /**
+     * Calculate refresh token expiry in seconds
+     */
+    private long calculateRefreshTokenExpSeconds(RefreshToken refreshToken) {
+        Instant now = Instant.now();
+        Instant expiry = refreshToken.getExpiryDate();
+        return expiry.getEpochSecond() - now.getEpochSecond();
+    }
+
 }

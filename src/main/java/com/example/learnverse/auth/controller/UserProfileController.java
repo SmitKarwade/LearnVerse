@@ -6,10 +6,13 @@ import com.example.learnverse.auth.user.AppUser;
 import com.example.learnverse.auth.user.UserProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/user/profile")
@@ -47,32 +50,45 @@ public class UserProfileController {
     /**
      * Get user profile
      */
+    // UserProfileController.java
     @GetMapping("/get_profile")
-    public ResponseEntity<Map<String, Object>> getProfile(Authentication auth) {
+    @PreAuthorize("hasAnyRole('USER', 'TUTOR', 'ADMIN')")
+    public ResponseEntity<?> getProfile(Authentication auth) {
         try {
-            UserProfile profile = profileService.getUserProfile(auth.getName());
+            String userId = auth.getName();
 
-            if (profile == null) {
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "Please complete your profile setup to get personalized AI assistance.",
-                        "profileCompleted", false,
-                        "profile", null
-                ));
+            Optional<UserProfile> profileOpt = Optional.ofNullable(profileService.getUserProfile(userId));
+
+            if (profileOpt.isEmpty()) {
+                // ✅ FIX: Use HashMap instead of Map.of() to allow null values
+                return ResponseEntity.ok(new HashMap<String, Object>() {{
+                    put("success", true);
+                    put("profile", null);  // null is allowed in HashMap
+                    put("message", "Profile not set up yet");
+                }});
             }
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "profile", profile,
-                    "profileCompleted", profile.getProfileCompleted() != null ? profile.getProfileCompleted() : false
-            ));
+            UserProfile profile = profileOpt.get();
+
+            // ✅ FIX: Use HashMap or ensure no null values
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("profile", profile);
+
+            return ResponseEntity.ok(response);
+
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            e.printStackTrace();
+
+            // ✅ FIX: Use HashMap for error response too
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", e.getMessage());
+
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
+
 
     /**
      * Update user profile

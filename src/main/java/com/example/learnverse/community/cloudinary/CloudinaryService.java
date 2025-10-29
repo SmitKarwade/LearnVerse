@@ -3,6 +3,7 @@ package com.example.learnverse.community.cloudinary;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.Transformation;
 import com.cloudinary.utils.ObjectUtils;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @Slf4j
@@ -134,6 +136,97 @@ public class CloudinaryService {
 
         return resourceUrl;
     }
+
+    @Service
+    @RequiredArgsConstructor
+    public class FileStorageService {
+
+        private final Cloudinary cloudinary;
+        private final String uploadDir = "verification-documents";
+
+        /**
+         * Store file to Cloudinary
+         */
+        public String storeFile(MultipartFile file, String verificationId, String fileType) throws IOException {
+            try {
+                String fileName = fileType + "_" + UUID.randomUUID().toString() +
+                        "_" + file.getOriginalFilename();
+
+                // Upload to Cloudinary
+                Map uploadResult = cloudinary.uploader().upload(
+                        file.getBytes(),
+                        ObjectUtils.asMap(
+                                "folder", "learnverse/tutor-verification/" + verificationId,
+                                "resource_type", "auto",
+                                "public_id", fileName
+                        )
+                );
+
+                // Return the secure URL
+                return (String) uploadResult.get("secure_url");
+
+            } catch (Exception e) {
+                throw new IOException("Failed to store file: " + e.getMessage(), e);
+            }
+        }
+
+        /**
+         * Store profile picture (optimized for images)
+         */
+        public String storeProfilePicture(MultipartFile file, String verificationId) throws IOException {
+            try {
+                // Validate it's an image
+                if (!file.getContentType().startsWith("image/")) {
+                    throw new IOException("Profile picture must be an image file");
+                }
+
+                String fileName = "profile_" + UUID.randomUUID().toString();
+
+                // Upload to Cloudinary with image transformations
+                Map uploadResult = cloudinary.uploader().upload(
+                        file.getBytes(),
+                        ObjectUtils.asMap(
+                                "folder", "learnverse/tutor-profiles/" + verificationId,
+                                "resource_type", "image",
+                                "public_id", fileName,
+                                "transformation", new Transformation()
+                                        .width(400).height(400)
+                                        .crop("fill")
+                                        .gravity("face")
+                                        .quality("auto")
+                                        .fetchFormat("auto")
+                        )
+                );
+
+                return (String) uploadResult.get("secure_url");
+
+            } catch (Exception e) {
+                throw new IOException("Failed to store profile picture: " + e.getMessage(), e);
+            }
+        }
+
+        /**
+         * Delete verification files from Cloudinary
+         */
+        public void deleteVerificationFiles(String verificationId) {
+            try {
+                // Delete entire folder
+                cloudinary.api().deleteResourcesByPrefix(
+                        "learnverse/tutor-verification/" + verificationId,
+                        ObjectUtils.emptyMap()
+                );
+
+                cloudinary.api().deleteResourcesByPrefix(
+                        "learnverse/tutor-profiles/" + verificationId,
+                        ObjectUtils.emptyMap()
+                );
+            } catch (Exception e) {
+                // Log but don't fail
+                System.err.println("Error deleting files: " + e.getMessage());
+            }
+        }
+    }
+
 
     @lombok.Data
     @lombok.Builder
