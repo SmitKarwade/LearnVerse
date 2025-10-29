@@ -23,9 +23,10 @@ import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.StringUtils;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.data.mongodb.core.aggregation.Aggregation;
@@ -864,6 +865,102 @@ public class ActivityService {
             activity.getSchedule().setSessionDays(normalizedDays);
         }
     }
+
+    // ActivityService.java - Add this method
+
+    public Map<String, Object> getHomeFeed(String userId) {
+        Map<String, Object> feed = new HashMap<>();
+
+        // 1. Recommended Activities (based on interests if user logged in)
+        List<Activity> recommended;
+        if (userId != null) {
+            try {
+                AppUser user = userService.getUserById(userId);
+                if (user.getInterests() != null && !user.getInterests().isEmpty()) {
+                    Query query = new Query();
+                    List<Criteria> interestCriteria = new ArrayList<>();
+
+                    for (String interest : user.getInterests()) {
+                        String escapedInterest = Pattern.quote(interest.toLowerCase().trim());
+                        interestCriteria.add(Criteria.where("subject").regex(escapedInterest, "i"));
+                        interestCriteria.add(Criteria.where("tags").regex(escapedInterest, "i"));
+                    }
+
+                    query.addCriteria(new Criteria().andOperator(
+                            new Criteria().orOperator(interestCriteria.toArray(new Criteria[0])),
+                            Criteria.where("isActive").is(true),
+                            Criteria.where("isPublic").is(true)
+                    ));
+
+                    query.limit(10);
+                    recommended = mongoTemplate.find(query, Activity.class);
+                } else {
+                    recommended = activityRepository.findByIsActiveAndIsPublic(true, true)
+                            .stream().limit(10).collect(Collectors.toList());
+                }
+            } catch (Exception e) {
+                recommended = activityRepository.findByIsActiveAndIsPublic(true, true)
+                        .stream().limit(10).collect(Collectors.toList());
+            }
+        } else {
+            recommended = activityRepository.findByIsActiveAndIsPublic(true, true)
+                    .stream().limit(10).collect(Collectors.toList());
+        }
+        feed.put("recommended", recommended);
+
+        // 2. Popular This Week (most enrolled)
+        Query popularQuery = new Query();
+        popularQuery.addCriteria(Criteria.where("isActive").is(true)
+                .and("isPublic").is(true));
+        popularQuery.with(Sort.by(Sort.Direction.DESC, "enrollmentInfo.enrolledCount"));
+        popularQuery.limit(8);
+        List<Activity> popular = mongoTemplate.find(popularQuery, Activity.class);
+        feed.put("popular", popular);
+
+        // 3. Top Rated (4.5+ stars)
+        Query topRatedQuery = new Query();
+        topRatedQuery.addCriteria(Criteria.where("isActive").is(true)
+                .and("isPublic").is(true)
+                .and("reviews.averageRating").gte(4.5));
+        topRatedQuery.with(Sort.by(Sort.Direction.DESC, "reviews.averageRating"));
+        topRatedQuery.limit(8);
+        List<Activity> topRated = mongoTemplate.find(topRatedQuery, Activity.class);
+        feed.put("topRated", topRated);
+
+        // 4. New Activities (last 30 days)
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        Query newQuery = new Query();
+        newQuery.addCriteria(Criteria.where("isActive").is(true)
+                .and("isPublic").is(true)
+                .and("createdAt").gte(Date.from(thirtyDaysAgo.atZone(ZoneId.systemDefault()).toInstant())));
+        newQuery.with(Sort.by(Sort.Direction.DESC, "createdAt"));
+        newQuery.limit(8);
+        List<Activity> newActivities = mongoTemplate.find(newQuery, Activity.class);
+        feed.put("newActivities", newActivities);
+
+        // 5. Featured Activities
+        Query featuredQuery = new Query();
+        featuredQuery.addCriteria(Criteria.where("isActive").is(true)
+                .and("isPublic").is(true)
+                .and("featured").is(true));
+        featuredQuery.limit(6);
+        List<Activity> featured = mongoTemplate.find(featuredQuery, Activity.class);
+        feed.put("featured", featured);
+
+        // 6. Categories (unique subjects)
+        List<String> categories = mongoTemplate.query(Activity.class)
+                .distinct("subject")
+                .as(String.class)
+                .all()
+                .stream()
+                .filter(s -> s != null && !s.trim().isEmpty())
+                .limit(10)
+                .collect(Collectors.toList());
+        feed.put("categories", categories);
+
+        return feed;
+    }
+
 
 
     // AI chatbot

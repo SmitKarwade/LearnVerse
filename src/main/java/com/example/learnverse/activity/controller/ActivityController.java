@@ -429,4 +429,20 @@ public class ActivityController {
         }
     }
 
+    @GetMapping("/home-feed")
+    public ResponseEntity<?> getHomeFeed(Authentication auth) {
+        try {
+            String userId = auth != null ? auth.getName() : null;
+
+            Map<String, Object> homeFeed = activityService.getHomeFeed(userId);
+
+            return ResponseEntity.ok(homeFeed);
+        } catch (Exception e) {
+            log.error("Error fetching home feed", e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Failed to fetch home feed: " + e.getMessage()
+            ));
+        }
+    }
+
 }
