@@ -54,7 +54,7 @@ public class AuthService {
         // Generate access token
         String accessToken = jwtUtil.generateAccessToken(
                 user.getId(),
-                Map.of("role", user.getRole().name(), "email", user.getEmail())
+                Map.of("role", user.getRole().name(), "email", user.getEmail(), "name", user.getName())
         );
 
         // Generate refresh token
@@ -91,7 +91,7 @@ public class AuthService {
         // Generate new tokens
         String accessToken = jwtUtil.generateAccessToken(
                 user.getId(),
-                Map.of("role", user.getRole().name(), "email", user.getEmail())
+                Map.of("role", user.getRole().name(), "email", user.getEmail(), "name", user.getName())
         );
 
         String deviceInfo = getDeviceInfo(request);
@@ -120,7 +120,7 @@ public class AuthService {
 
                     String newAccessToken = jwtUtil.generateAccessToken(
                             user.getId(),
-                            Map.of("role", user.getRole().name(), "email", user.getEmail())
+                            Map.of("role", user.getRole().name(), "email", user.getEmail(), "name", user.getName())
                     );
 
                     return new AuthResponse(

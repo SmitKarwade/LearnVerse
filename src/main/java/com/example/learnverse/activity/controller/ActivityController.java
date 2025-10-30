@@ -78,6 +78,38 @@ public class ActivityController {
         }
     }
 
+    /**
+     * ✅ Get single activity by ID (for all authenticated users)
+     */
+    @GetMapping("/{activityId}")
+    @PreAuthorize("hasAnyRole('USER', 'TUTOR')")
+    public ResponseEntity<?> getActivityById(
+            @PathVariable String activityId,
+            Authentication auth) {
+        try {
+            Activity activity = activityService.getActivityById(activityId);
+
+            // Check if user can access this activity
+            String userId = auth.getName();
+            boolean isTutor = auth.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .anyMatch(role -> role.equals("ROLE_TUTOR"));
+
+            // Allow access if:
+            // 1. Activity is public
+            // 2. User is the tutor who created it
+            if (!activity.getIsPublic() && (!isTutor || !activity.getTutorId().equals(userId))) {
+                return ResponseEntity.status(403).body("You don't have access to this activity");
+            }
+
+            return ResponseEntity.ok(activity);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(404).body("Activity not found: " + e.getMessage());
+        }
+    }
+
+
     @PreAuthorize("hasRole('TUTOR')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteActivity(@PathVariable String id, Authentication auth) {
