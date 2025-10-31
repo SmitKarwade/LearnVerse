@@ -22,7 +22,7 @@ public class Post {
     private String authorId;
     private String authorName;
     private String authorType;
-
+    private String authorProfilePicture;
     private String content;
     private String mediaUrl;
     private String mediaType;
@@ -47,16 +47,18 @@ public class Post {
         private String authorId;
         private String authorName;
         private String authorType;
+        private String authorProfilePicture;
         private String content;
         private Set<String> likedBy = new HashSet<>();
         private LocalDateTime createdAt;
 
 
-        public Comment(String authorId, String authorName, String authorType, String content) {
+        public Comment(String authorId, String authorName, String authorType, String authorProfilePicture, String content) {
             this.id = UUID.randomUUID().toString();
             this.authorId = authorId;
             this.authorName = authorName;
             this.authorType = authorType;
+            this.authorProfilePicture = authorProfilePicture;
             this.content = content;
             this.createdAt = LocalDateTime.now();
         }

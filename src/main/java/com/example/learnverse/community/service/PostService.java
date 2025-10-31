@@ -6,6 +6,8 @@ import com.example.learnverse.community.follow.FollowService;
 import com.example.learnverse.community.websocket.WebSocketNotificationService;
 import com.example.learnverse.community.model.Post;
 import com.example.learnverse.community.repository.PostRepository;
+import com.example.learnverse.tutor.model.TutorVerification;
+import com.example.learnverse.tutor.repo.TutorVerificationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -19,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,7 +43,9 @@ public class PostService {
     @Autowired
     private FollowService followService;
 
-    // Create new post
+    @Autowired
+    private TutorVerificationRepository tutorVerificationRepository;
+
     public Post createPost(String authorId, String content, MultipartFile file) {
         AppUser author = userService.getUserById(authorId);
 
@@ -48,6 +53,7 @@ public class PostService {
         post.setAuthorId(authorId);
         post.setAuthorName(author.getName());
         post.setAuthorType(author.getRole().toString());
+        post.setAuthorProfilePicture(getProfilePicture(author));
         post.setContent(content);
         post.setCreatedAt(LocalDateTime.now());
         post.setUpdatedAt(LocalDateTime.now());
@@ -77,19 +83,20 @@ public class PostService {
         return savedPost;
     }
 
-    // Add comment to post
+    // ✅ UPDATED: Add comment to post
     public Post addComment(String postId, String authorId, String content) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
-        // Get commenter details - your method returns AppUser directly
+        // Get commenter details
         AppUser commenter = userService.getUserById(authorId);
 
-        // Create embedded comment
+        // Create embedded comment with profile picture
         Post.Comment comment = new Post.Comment(
                 authorId,
                 commenter.getName(),
                 commenter.getRole().toString(),
+                getProfilePicture(commenter),
                 content
         );
 
@@ -270,6 +277,18 @@ public class PostService {
         }
 
         postRepository.deleteById(postId);
+    }
+
+    private String getProfilePicture(AppUser user) {
+        // Check if user is a tutor and has verification
+        if ("TUTOR".equals(user.getRole().toString())) {
+            Optional<TutorVerification> verification = tutorVerificationRepository.findByEmail(user.getEmail());
+            if (verification.isPresent() && verification.get().getProfilePicturePath() != null) {
+                return verification.get().getProfilePicturePath();
+            }
+        }
+        // Return default or null if no profile picture
+        return null;
     }
 
     private String extractPublicIdFromUrl(String url) {
