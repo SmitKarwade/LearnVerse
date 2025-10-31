@@ -3,71 +3,47 @@ package com.example.learnverse.tutor.storage;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.Transformation;
 import com.cloudinary.utils.ObjectUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
 import java.util.Map;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class FileStorageService {
 
-    private final Path fileStorageLocation;
-
-    @Autowired
-    private Cloudinary cloudinary;
-
-    public FileStorageService(@Value("${app.file.upload-dir:./uploads}") String uploadDir) {
-        this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
-
-        try {
-            Files.createDirectories(this.fileStorageLocation);
-        } catch (Exception ex) {
-            throw new RuntimeException("Could not create the directory where the uploaded files will be stored.", ex);
-        }
-    }
+    private final Cloudinary cloudinary;
 
     /**
-     * Store document files (ID, certificate) to local storage
+     * ✅ Store verification documents to Cloudinary (ID, Certificate)
      */
-    public String storeFile(MultipartFile file, String tutorId, String fileType) {
-        // Create tutor-specific directory
-        Path tutorDirectory = this.fileStorageLocation.resolve("tutors").resolve(tutorId);
-
+    public String storeFile(MultipartFile file, String verificationId, String fileType) throws IOException {
         try {
-            Files.createDirectories(tutorDirectory);
-        } catch (IOException ex) {
-            throw new RuntimeException("Could not create tutor directory", ex);
-        }
+            if (file.isEmpty()) {
+                throw new IOException("File is empty");
+            }
 
-        // Generate unique filename
-        String fileName = StringUtils.cleanPath(file.getOriginalFilename());
-        String fileExtension = "";
-        if (fileName.contains(".")) {
-            fileExtension = fileName.substring(fileName.lastIndexOf("."));
-        }
+            String fileName = fileType + "_" + UUID.randomUUID().toString();
 
-        String storedFileName = fileType + "_" + UUID.randomUUID().toString() + fileExtension;
-        Path targetLocation = tutorDirectory.resolve(storedFileName);
+            // Upload to Cloudinary
+            Map uploadResult = cloudinary.uploader().upload(
+                    file.getBytes(),
+                    ObjectUtils.asMap(
+                            "folder", "learnverse/tutor-verification/" + verificationId,
+                            "resource_type", "auto",  // Auto-detect: PDF, JPG, PNG
+                            "public_id", fileName
+                    )
+            );
 
-        try {
-            // Copy file to the target location
-            Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+            // ✅ Return Cloudinary URL (NOT local path)
+            String cloudinaryUrl = (String) uploadResult.get("secure_url");
+            return cloudinaryUrl;
 
-            // Return relative path for storage in database
-            return "tutors/" + tutorId + "/" + storedFileName;
-        } catch (IOException ex) {
-            throw new RuntimeException("Could not store file " + storedFileName + ". Please try again!", ex);
+        } catch (Exception e) {
+            throw new IOException("Failed to store document to Cloudinary: " + e.getMessage(), e);
         }
     }
 
@@ -87,8 +63,8 @@ public class FileStorageService {
             Map uploadResult = cloudinary.uploader().upload(
                     file.getBytes(),
                     ObjectUtils.asMap(
-                            "folder", "learnverse/tutor-profiles",
-                            "public_id", verificationId + "/" + fileName,
+                            "folder", "learnverse/tutor-profiles/" + verificationId,
+                            "public_id", fileName,
                             "resource_type", "image",
                             "transformation", new Transformation()
                                     .width(400).height(400)
@@ -99,7 +75,7 @@ public class FileStorageService {
                     )
             );
 
-            // Return the Cloudinary secure URL
+            // ✅ Return Cloudinary URL
             return (String) uploadResult.get("secure_url");
 
         } catch (Exception e) {
@@ -107,6 +83,33 @@ public class FileStorageService {
         }
     }
 
+    /**
+     * ✅ Delete verification files from Cloudinary
+     */
+    public void deleteVerificationFiles(String verificationId) {
+        try {
+            // Delete entire folder from Cloudinary
+            cloudinary.api().deleteResourcesByPrefix(
+                    "learnverse/tutor-verification/" + verificationId,
+                    ObjectUtils.emptyMap()
+            );
+
+            cloudinary.api().deleteResourcesByPrefix(
+                    "learnverse/tutor-profiles/" + verificationId,
+                    ObjectUtils.emptyMap()
+            );
+
+            System.out.println("✅ Deleted Cloudinary files for verification: " + verificationId);
+
+        } catch (Exception e) {
+            System.err.println("Failed to delete Cloudinary files: " + e.getMessage());
+            // Don't throw - continue even if deletion fails
+        }
+    }
+
+    /**
+     * ✅ Delete specific image from Cloudinary
+     */
     public void deleteCloudinaryImage(String publicId) {
         try {
             if (publicId != null && !publicId.isEmpty()) {
@@ -119,33 +122,22 @@ public class FileStorageService {
     }
 
     /**
-     * Delete local verification files
+     * ✅ Extract public_id from Cloudinary URL for deletion
      */
-    public void deleteVerificationFiles(String verificationId) {
+    private String extractPublicIdFromUrl(String cloudinaryUrl) {
         try {
-            Path tutorDir = fileStorageLocation.resolve("tutors").resolve(verificationId);
-            if (Files.exists(tutorDir)) {
-                Files.walk(tutorDir)
-                        .sorted(Comparator.reverseOrder())
-                        .map(Path::toFile)
-                        .forEach(File::delete);
+            String[] parts = cloudinaryUrl.split("/upload/");
+            if (parts.length > 1) {
+                String path = parts[1];
+                // Remove version number if present
+                path = path.replaceFirst("v\\d+/", "");
+                // Remove file extension
+                path = path.substring(0, path.lastIndexOf('.'));
+                return path;
             }
         } catch (Exception e) {
-            System.err.println("Failed to delete verification files for " + verificationId + ": " + e.getMessage());
+            System.err.println("Failed to extract public_id: " + e.getMessage());
         }
-
-        // ✅ Also delete from Cloudinary
-        try {
-            cloudinary.api().deleteResourcesByPrefix(
-                    "learnverse/tutor-profiles/" + verificationId,
-                    ObjectUtils.emptyMap()
-            );
-        } catch (Exception e) {
-            System.err.println("Failed to delete Cloudinary files: " + e.getMessage());
-        }
-    }
-
-    public Path getFileStorageLocation() {
-        return fileStorageLocation;
+        return null;
     }
 }

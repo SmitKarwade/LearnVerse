@@ -6,6 +6,7 @@ import com.example.learnverse.auth.refresh.RefreshTokenService;
 import com.example.learnverse.auth.service.AuthService;
 import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
+import com.example.learnverse.tutor.repo.TutorVerificationRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -19,6 +20,7 @@ import com.example.learnverse.tutor.model.TutorVerification;
 import com.example.learnverse.tutor.enumcl.VerificationStatus;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -46,6 +48,9 @@ public class TutorVerificationController {
 
     @Autowired
     private RefreshTokenService refreshTokenService;
+
+    @Autowired
+    private TutorVerificationRepository repository;
 
     /**
      * Submit tutor verification request
@@ -263,6 +268,62 @@ public class TutorVerificationController {
     }
 
     /**
+     * ✅ Get current tutor's verification profile
+     */
+    @GetMapping("/my-profile")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<?> getMyProfile(Authentication auth) {
+        try {
+            String userId = auth.getName();
+            AppUser user = userService.getUserById(userId);
+
+            TutorVerification verification = verificationService.getVerificationByEmail(user.getEmail())
+                    .orElseThrow(() -> new RuntimeException("Tutor profile not found"));
+
+            return ResponseEntity.ok(mapVerificationWithDocumentLinks(verification));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
+     * ✅ Update tutor profile (bio, qualifications, etc.)
+     */
+    @PutMapping("/update-profile")
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<?> updateTutorProfile(
+            @RequestParam String bio,
+            @RequestParam List<String> qualifications,
+            @RequestParam String experience,
+            @RequestParam List<String> specializations,
+            Authentication auth) {
+        try {
+            String userId = auth.getName();
+            AppUser user = userService.getUserById(userId);
+
+            TutorVerification verification = verificationService.getVerificationByEmail(user.getEmail())
+                    .orElseThrow(() -> new RuntimeException("Tutor profile not found"));
+
+            // Update fields
+            verification.setBio(bio);
+            verification.setQualifications(qualifications);
+            verification.setExperience(experience);
+            verification.setSpecializations(specializations);
+            verification.setUpdatedAt(LocalDateTime.now());
+
+            verification = repository.save(verification);
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Profile updated successfully",
+                    "profile", mapVerificationWithDocumentLinks(verification)
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+        }
+    }
+
+    /**
      * Update profile picture (Tutor only)
      */
     @PutMapping("/update-profile-picture")
@@ -325,12 +386,8 @@ public class TutorVerificationController {
         }
     }
 
-
     /**
-     * Helper method to map verification with document access links
-     */
-    /**
-     * Helper method to map verification with document access links
+     * Helper method to map verification with document links (UPDATED)
      */
     private Map<String, Object> mapVerificationWithDocumentLinks(TutorVerification verification) {
         Map<String, Object> verificationData = new HashMap<>();
@@ -340,13 +397,12 @@ public class TutorVerificationController {
         verificationData.put("email", verification.getEmail());
         verificationData.put("fullName", verification.getFullName());
         verificationData.put("phone", verification.getPhone());
-
-        // ✅ ADD THESE QUALIFICATION FIELDS
         verificationData.put("bio", verification.getBio());
         verificationData.put("qualifications", verification.getQualifications());
         verificationData.put("experience", verification.getExperience());
         verificationData.put("specializations", verification.getSpecializations());
 
+        // Profile picture
         if (verification.getProfilePicturePath() != null) {
             verificationData.put("profilePicture", Map.of(
                     "url", verification.getProfilePicturePath(),
@@ -361,22 +417,24 @@ public class TutorVerificationController {
         verificationData.put("createdAt", verification.getCreatedAt());
         verificationData.put("updatedAt", verification.getUpdatedAt());
 
-        // Document information
+        // ✅ UPDATED: Document information with Cloudinary URLs
         Map<String, Object> documents = new HashMap<>();
 
         if (verification.getIdDocumentPath() != null) {
             documents.put("idDocument", Map.of(
                     "originalName", verification.getIdDocumentOriginalName(),
-                    "downloadUrl", "/api/files/verification-documents/" + verification.getIdDocumentPath(),
-                    "viewUrl", "/api/files/verification-documents/view/" + verification.getIdDocumentPath()
+                    "url", verification.getIdDocumentPath(),  // ✅ Cloudinary URL
+                    "viewUrl", verification.getIdDocumentPath(),  // ✅ Same as url
+                    "downloadUrl", verification.getIdDocumentPath()  // ✅ Same as url
             ));
         }
 
         if (verification.getCertificatePath() != null) {
             documents.put("certificate", Map.of(
                     "originalName", verification.getCertificateOriginalName(),
-                    "downloadUrl", "/api/files/verification-documents/" + verification.getCertificatePath(),
-                    "viewUrl", "/api/files/verification-documents/view/" + verification.getCertificatePath()
+                    "url", verification.getCertificatePath(),  // ✅ Cloudinary URL
+                    "viewUrl", verification.getCertificatePath(),  // ✅ Same as url
+                    "downloadUrl", verification.getCertificatePath()  // ✅ Same as url
             ));
         }
 
