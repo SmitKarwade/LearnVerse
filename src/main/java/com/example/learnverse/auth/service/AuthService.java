@@ -67,7 +67,9 @@ public class AuthService {
                 "Bearer",
                 jwtUtil.getAccessExpSeconds(),
                 user.getRole().name(),
-                user.getId()
+                user.getId(),
+                user.getName(),
+                user.getEmail()
         );
     }
 
@@ -103,7 +105,9 @@ public class AuthService {
                 "Bearer",
                 jwtUtil.getAccessExpSeconds(),
                 user.getRole().name(),
-                user.getId()
+                user.getId(),
+                user.getName(),
+                user.getEmail()
         );
     }
 
@@ -129,7 +133,9 @@ public class AuthService {
                             "Bearer",
                             jwtUtil.getAccessExpSeconds(),
                             user.getRole().name(),
-                            user.getId()
+                            user.getId(),
+                            user.getName(),
+                            user.getEmail()
                     );
                 })
                 .orElseThrow(() -> new RuntimeException("Refresh token is not valid"));
