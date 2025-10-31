@@ -6,6 +6,7 @@ import com.example.learnverse.auth.refresh.RefreshTokenService;
 import com.example.learnverse.auth.service.AuthService;
 import com.example.learnverse.auth.service.UserService;
 import com.example.learnverse.auth.user.AppUser;
+import com.example.learnverse.tutor.dto.UpdateTutorProfileRequest;
 import com.example.learnverse.tutor.repo.TutorVerificationRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -284,28 +285,25 @@ public class TutorVerificationController {
     }
 
     /**
-     * ✅ Update tutor profile (bio, qualifications, etc.)
+     * ✅ Update tutor profile (JSON body)
      */
     @PutMapping("/update-profile")
     @PreAuthorize("hasRole('TUTOR')")
     public ResponseEntity<?> updateTutorProfile(
-            @RequestParam String bio,
-            @RequestParam List<String> qualifications,
-            @RequestParam String experience,
-            @RequestParam List<String> specializations,
+            @RequestBody UpdateTutorProfileRequest request,
             Authentication auth) {
         try {
             String userId = auth.getName();
             AppUser user = userService.getUserById(userId);
 
-            TutorVerification verification = verificationService.getVerificationByEmail(user.getEmail())
+            TutorVerification verification = repository.findByEmail(user.getEmail())
                     .orElseThrow(() -> new RuntimeException("Tutor profile not found"));
 
             // Update fields
-            verification.setBio(bio);
-            verification.setQualifications(qualifications);
-            verification.setExperience(experience);
-            verification.setSpecializations(specializations);
+            verification.setBio(request.getBio());
+            verification.setQualifications(request.getQualifications());
+            verification.setExperience(request.getExperience());
+            verification.setSpecializations(request.getSpecializations());
             verification.setUpdatedAt(LocalDateTime.now());
 
             verification = repository.save(verification);
@@ -316,9 +314,13 @@ public class TutorVerificationController {
                     "profile", mapVerificationWithDocumentLinks(verification)
             ));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(createErrorResponse(e.getMessage()));
+            return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "error", e.getMessage()
+            ));
         }
     }
+
 
     /**
      * Update profile picture (Tutor only)
