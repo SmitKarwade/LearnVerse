@@ -44,9 +44,6 @@ public class TutorVerificationController {
     private UserService userService;
 
     @Autowired
-    private TutorVerificationService tutorVerificationService;
-
-    @Autowired
     private RefreshTokenService refreshTokenService;
 
     @Autowired
@@ -81,7 +78,7 @@ public class TutorVerificationController {
                 ));
             }
 
-            TutorVerification verification = tutorVerificationService.createVerificationRequest(
+            TutorVerification verification = verificationService.createVerificationRequest(
                     email, fullName, phone, bio, qualifications, experience, specializations, profilePicture,
                     idDocument, certificate, termsAccepted
             );
