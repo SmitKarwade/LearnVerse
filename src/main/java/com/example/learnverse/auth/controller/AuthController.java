@@ -34,8 +34,11 @@ public class AuthController {
     }
 
     @PostMapping("/auth/refresh-token")
-    public ResponseEntity<AuthResponse> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
-        return ResponseEntity.ok(authService.refreshToken(request));
+    public ResponseEntity<AuthResponse> refreshToken(
+            @Valid @RequestBody TokenRefreshRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return ResponseEntity.ok(authService.refreshToken(request, httpRequest));
     }
 
     @PostMapping("/auth/logout")

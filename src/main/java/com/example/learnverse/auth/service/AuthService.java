@@ -13,6 +13,7 @@ import com.example.learnverse.auth.repo.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -112,33 +114,69 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthResponse refreshToken(@Valid TokenRefreshRequest request) {
+    public AuthResponse refreshToken(@Valid TokenRefreshRequest request, HttpServletRequest httpRequest) {
         String requestRefreshToken = request.refreshToken();
 
-        return refreshTokenService.findByToken(requestRefreshToken)
-                .map(refreshTokenService::verifyExpiration)
-                .map(RefreshToken::getUserId)
-                .map(userId -> {
-                    AppUser user = userRepository.findById(userId)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
+        log.info("🔄 Refresh token request received");
 
-                    String newAccessToken = jwtUtil.generateAccessToken(
-                            user.getId(),
-                            Map.of("role", user.getRole().name(), "email", user.getEmail(), "name", user.getName())
-                    );
+        // 1. Find refresh token
+        RefreshToken oldRefreshToken = refreshTokenService.findByToken(requestRefreshToken)
+                .orElseThrow(() -> {
+                    log.error("❌ Refresh token not found in database");
+                    return new RuntimeException("Refresh token is not valid");
+                });
 
-                    return new AuthResponse(
-                            newAccessToken,
-                            requestRefreshToken, // Reuse the same refresh token
-                            "Bearer",
-                            jwtUtil.getAccessExpSeconds(),
-                            user.getRole().name(),
-                            user.getId(),
-                            user.getName(),
-                            user.getEmail()
-                    );
-                })
-                .orElseThrow(() -> new RuntimeException("Refresh token is not valid"));
+        log.info("✅ Refresh token found for userId: {}", oldRefreshToken.getUserId());
+
+        // 2. Check if expired
+        if (oldRefreshToken.isExpired()) {
+            log.error("❌ Refresh token expired at: {}", oldRefreshToken.getExpiryDate());
+            refreshTokenService.deleteByToken(requestRefreshToken);
+            throw new RuntimeException("Refresh token expired. Please login again");
+        }
+
+        log.info("✅ Refresh token is valid and not expired");
+
+        // 3. Get user
+        AppUser user = userRepository.findById(oldRefreshToken.getUserId())
+                .orElseThrow(() -> {
+                    log.error("❌ User not found for userId: {}", oldRefreshToken.getUserId());
+                    return new RuntimeException("User not found");
+                });
+
+        log.info("✅ User found: {}", user.getEmail());
+
+        // 4. Generate new access token
+        String newAccessToken = jwtUtil.generateAccessToken(
+                user.getId(),
+                Map.of("role", user.getRole().name(), "email", user.getEmail(), "name", user.getName())
+        );
+
+        log.info("✅ New access token generated");
+
+        // 5. Delete old refresh token
+        refreshTokenService.deleteByToken(requestRefreshToken);
+        log.info("✅ Old refresh token deleted");
+
+        // 6. Create new refresh token
+        String deviceInfo = getDeviceInfo(httpRequest);
+        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(
+                user.getId(),
+                deviceInfo
+        );
+        log.info("✅ New refresh token created");
+
+        // 7. Return new tokens
+        return new AuthResponse(
+                newAccessToken,
+                newRefreshToken.getToken(),
+                "Bearer",
+                jwtUtil.getAccessExpSeconds(),
+                user.getRole().name(),
+                user.getId(),
+                user.getName(),
+                user.getEmail()
+        );
     }
 
     @Transactional

@@ -103,18 +103,30 @@ public class ActivityService {
                     PageRequest.of(page != null ? page : 0, size != null ? size : 20), () -> 0);
         }
 
-        // Build TF-IDF index and rank by similarity
+        // ✅ FIX 1: Rank by TF-IDF similarity FIRST
         List<Activity> rankedActivities = rankActivitiesBySimilarity(candidates, parsedQuery.getQueryText());
 
-        // Apply proximity filtering if distance is specified
+        // ✅ FIX 2: Filter by minimum relevance threshold (0.15)
+        // This removes activities with very low similarity scores
+        List<Activity> relevantActivities = filterByRelevanceThreshold(rankedActivities, parsedQuery.getQueryText(), 0.15);
+
+        log.info("Activities after relevance filtering: {} (removed {} irrelevant)",
+                relevantActivities.size(), rankedActivities.size() - relevantActivities.size());
+
+        // ✅ FIX 3: Apply proximity logic
         final List<Activity> finalRankedActivities;
         if (parsedQuery.getDistanceKm() != null && userLatitude != null && userLongitude != null) {
-            finalRankedActivities = filterByProximity(rankedActivities, userLatitude, userLongitude, parsedQuery.getDistanceKm());
+            // User explicitly asked "within 10km" - hard filter by distance
+            log.info("Applying proximity filter: {}km", parsedQuery.getDistanceKm());
+            finalRankedActivities = filterByProximity(relevantActivities, userLatitude, userLongitude, parsedQuery.getDistanceKm());
+        } else if (userLatitude != null && userLongitude != null) {
+            // No explicit distance - apply minimal proximity boost (only 5% weight)
+            finalRankedActivities = boostNearbyActivities(relevantActivities, userLatitude, userLongitude);
         } else {
-            finalRankedActivities = rankedActivities; // Skip proximity filtering if no location
+            // No location - pure relevance ranking
+            finalRankedActivities = relevantActivities;
         }
 
-        // Store the total count in a final variable
         final long totalCount = finalRankedActivities.size();
 
         // Apply pagination
@@ -129,6 +141,84 @@ public class ActivityService {
         Pageable pageable = PageRequest.of(pageNum, pageSize);
 
         return PageableExecutionUtils.getPage(paginatedResults, pageable, () -> totalCount);
+    }
+
+    /**
+     * ✅ NEW METHOD: Filter out activities with low TF-IDF similarity
+     * This ensures only relevant activities are shown
+     */
+    private List<Activity> filterByRelevanceThreshold(List<Activity> activities, String queryText, double threshold) {
+        if (queryText == null || queryText.trim().isEmpty()) {
+            return activities;
+        }
+
+        // Vectorize query
+        double[] queryVector = tfIdfService.vectorizeText(queryText);
+
+        List<Activity> filtered = new ArrayList<>();
+
+        for (Activity activity : activities) {
+            String activityText = buildActivityText(activity);
+            double[] activityVector = tfIdfService.vectorizeText(activityText);
+
+            double similarity = TfIdfService.cosineSimilarity(queryVector, activityVector);
+
+            log.debug("Activity: {} | Similarity: {}", activity.getTitle(), similarity);
+
+            if (similarity >= threshold) {
+                filtered.add(activity);
+            }
+        }
+
+        log.info("✅ Relevance filter: Kept {} / {} activities (threshold: {})",
+                filtered.size(), activities.size(), threshold);
+
+        return filtered;
+    }
+
+    /**
+     * ✅ UPDATED: Reduce proximity weight from 30% to 5%
+     * Text relevance now dominates: 95% relevance + 5% proximity
+     */
+    private List<Activity> boostNearbyActivities(List<Activity> activities, double userLat, double userLon) {
+        List<ActivityWithScore> scoredActivities = new ArrayList<>();
+
+        for (int i = 0; i < activities.size(); i++) {
+            Activity activity = activities.get(i);
+
+            double relevanceScore = (activities.size() - i) / (double) activities.size();
+
+            double proximityBoost = 0.0;
+            if (activity.getLocation() != null &&
+                    activity.getLocation().getCoordinates() != null &&
+                    activity.getLocation().getCoordinates().getCoordinates() != null &&
+                    activity.getLocation().getCoordinates().getCoordinates().size() >= 2) {
+
+                double activityLon = activity.getLocation().getCoordinates().getCoordinates().get(0);
+                double activityLat = activity.getLocation().getCoordinates().getCoordinates().get(1);
+
+                double distance = calculateDistance(userLat, userLon, activityLat, activityLon);
+
+                // Only boost if within 30km (reduced from 100km)
+                if (distance <= 30) {
+                    // Minimal boost for nearby activities
+                    proximityBoost = (1 - (distance / 30.0));
+                }
+            }
+
+            double finalScore = (relevanceScore * 0.95) + (proximityBoost * 0.05);
+
+            scoredActivities.add(new ActivityWithScore(activity, finalScore));
+        }
+
+        // Sort by combined score (descending)
+        scoredActivities.sort((a, b) -> Double.compare(b.score, a.score));
+
+        log.info("Applied minimal proximity boost (5% weight)");
+
+        return scoredActivities.stream()
+                .map(as -> as.activity)
+                .collect(Collectors.toList());
     }
 
     private List<Activity> rankActivitiesBySimilarity(List<Activity> activities, String queryText) {
@@ -966,6 +1056,16 @@ public class ActivityService {
     // AI chatbot
     public List<Activity> getAllPublicActivities() {
         return activityRepository.findByIsPublicTrue();
+    }
+
+    private static class ActivityWithScore {
+        Activity activity;
+        double score;
+
+        ActivityWithScore(Activity activity, double score) {
+            this.activity = activity;
+            this.score = score;
+        }
     }
 
 }
