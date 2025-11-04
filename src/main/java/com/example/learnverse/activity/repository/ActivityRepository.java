@@ -93,4 +93,6 @@ public interface ActivityRepository extends MongoRepository<Activity, String> {
 
 
     List<Activity> findByIsPublicTrue();
+
+    long countByTutorId(String tutorId);
 }
