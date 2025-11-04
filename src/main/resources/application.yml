@@ -58,6 +58,6 @@ razorpay:
     id: rzp_test_YqTdQL8TQyWX3M
     secret: M6zLIpAzu1CXtX6zIZZ1znlm
   callback:
-    url: http://localhost:8080/api/payments/callback
+    url: https://learnverse-sy8l.onrender.com/api/payments/callback
 
 
