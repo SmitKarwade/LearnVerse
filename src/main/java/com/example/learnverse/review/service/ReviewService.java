@@ -4,9 +4,8 @@ import com.example.learnverse.activity.model.Activity;
 import com.example.learnverse.activity.repository.ActivityRepository;
 import com.example.learnverse.auth.repo.UserRepository;
 import com.example.learnverse.auth.user.AppUser;
-import com.example.learnverse.enrollment.model.CourseEnrollment;
-import com.example.learnverse.enrollment.model.EnrollmentStatus;
-import com.example.learnverse.enrollment.repository.CourseEnrollmentRepository;
+import com.example.learnverse.enrollment.model.Enrollment;
+import com.example.learnverse.enrollment.repository.EnrollmentRepository;
 import com.example.learnverse.review.dto.ReviewDTO;
 import com.example.learnverse.review.model.Review;
 import com.example.learnverse.review.repository.ReviewRepository;
@@ -34,7 +33,7 @@ import java.util.Optional;
 public class ReviewService {
 
     private final ReviewRepository reviewRepository;
-    private final CourseEnrollmentRepository enrollmentRepository;
+    private final EnrollmentRepository enrollmentRepository;
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
     private final MongoTemplate mongoTemplate;
@@ -51,19 +50,19 @@ public class ReviewService {
                 .orElseThrow(() -> new RuntimeException("Activity not found"));
 
         // 2. Check if user is enrolled
-        Optional<CourseEnrollment> enrollmentOpt = enrollmentRepository
+        Optional<Enrollment> enrollmentOpt = enrollmentRepository
                 .findByUserIdAndActivityId(userId, activityId);
 
         if (enrollmentOpt.isEmpty()) {
             throw new RuntimeException("You must be enrolled in this activity to leave a review");
         }
 
-        CourseEnrollment enrollment = enrollmentOpt.get();
+        Enrollment enrollment = enrollmentOpt.get();
 
         // Optional: Only allow reviews if enrollment is active or completed
-        if (enrollment.getStatus() != EnrollmentStatus.ENROLLED &&
-                enrollment.getStatus() != EnrollmentStatus.IN_PROGRESS &&
-                enrollment.getStatus() != EnrollmentStatus.COMPLETED) {
+        if (enrollment.getStatus() != Enrollment.EnrollmentStatus.ENROLLED &&
+                enrollment.getStatus() != Enrollment.EnrollmentStatus.IN_PROGRESS &&
+                enrollment.getStatus() != Enrollment.EnrollmentStatus.COMPLETED) {
             throw new RuntimeException("You can only review activities you are actively enrolled in or have completed");
         }
 

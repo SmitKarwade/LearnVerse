@@ -43,6 +43,8 @@ dependencies {
     implementation("commons-fileupload:commons-fileupload:1.6.0")
     implementation("org.springframework.boot:spring-boot-starter-websocket")
 
+    implementation("com.razorpay:razorpay-java:1.4.8")
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

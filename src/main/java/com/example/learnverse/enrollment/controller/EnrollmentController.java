@@ -1,14 +1,15 @@
-// Update your EnrollmentController.java
 package com.example.learnverse.enrollment.controller;
 
 import com.example.learnverse.enrollment.dto.EnrollmentRequest;
-import com.example.learnverse.enrollment.model.CourseEnrollment;
-import com.example.learnverse.enrollment.service.CourseEnrollmentService;
-import lombok.Data;
+import com.example.learnverse.enrollment.model.Enrollment;
+import com.example.learnverse.enrollment.service.EnrollmentService;
+import com.example.learnverse.payment.dto.OrderResponse;
+import com.example.learnverse.payment.service.PaymentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,150 +18,132 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/enrollments")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Slf4j
 public class EnrollmentController {
 
-    private final CourseEnrollmentService enrollmentService;
+    private final EnrollmentService enrollmentService;
+    private final PaymentService paymentService;
 
     /**
-     * Enroll in a course
+     * Initiate enrollment - creates order for paid activities
+     * POST /api/enrollments/initiate
      */
-    @PostMapping("/enroll")
-    public ResponseEntity<Map<String, Object>> enrollInCourse(
-            @RequestBody EnrollmentRequest request,
-            Authentication auth) {
-        try {
-            CourseEnrollment enrollment = enrollmentService.enrollUserInCourse(auth.getName(), request);
+    @PostMapping("/initiate")
+    public ResponseEntity<OrderResponse> initiateEnrollment(
+            @AuthenticationPrincipal String userId,
+            @Valid @RequestBody EnrollmentRequest request
+    ) {
+        log.info("Initiating enrollment for user: {}", userId);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Successfully enrolled in " + enrollment.getActivityTitle(),
-                    "enrollment", enrollment
-            ));
+        try {
+            // This creates an order and returns Razorpay details
+            OrderResponse orderResponse = paymentService.createOrder(userId, request);
+            return ResponseEntity.ok(orderResponse);
         } catch (Exception e) {
-            log.error("❌ Enrollment error: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            log.error("Failed to initiate enrollment", e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Complete enrollment after successful payment
+     * POST /api/enrollments/complete
+     */
+    @PostMapping("/complete")
+    public ResponseEntity<Enrollment> completeEnrollment(
+            @AuthenticationPrincipal String userId,
+            @RequestBody Map<String, String> request
+    ) {
+        log.info("Completing enrollment for user: {}", userId);
+
+        try {
+            String orderId = request.get("orderId");
+            Enrollment enrollment = enrollmentService.createEnrollment(userId, orderId);
+            return ResponseEntity.ok(enrollment);
+        } catch (Exception e) {
+            log.error("Failed to complete enrollment", e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * Enroll in free activity (no payment required)
+     * POST /api/enrollments/free
+     */
+    @PostMapping("/free")
+    public ResponseEntity<Enrollment> enrollInFreeActivity(
+            @AuthenticationPrincipal String userId,
+            @Valid @RequestBody EnrollmentRequest request
+    ) {
+        log.info("Enrolling user in free activity: {}", userId);
+
+        try {
+            Enrollment enrollment = enrollmentService.enrollInFreeActivity(userId, request);
+            return ResponseEntity.ok(enrollment);
+        } catch (Exception e) {
+            log.error("Failed to enroll in free activity", e);
+            return ResponseEntity.badRequest().build();
         }
     }
 
     /**
      * Get user's enrollments
+     * GET /api/enrollments/my-enrollments
      */
     @GetMapping("/my-enrollments")
-    public ResponseEntity<Map<String, Object>> getMyEnrollments(Authentication auth) {
-        try {
-            List<CourseEnrollment> enrollments = enrollmentService.getUserEnrollments(auth.getName());
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "enrollments", enrollments,
-                    "total", enrollments.size()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
-        }
+    public ResponseEntity<List<Enrollment>> getMyEnrollments(
+            @AuthenticationPrincipal String userId
+    ) {
+        log.info("Fetching enrollments for user: {}", userId);
+        List<Enrollment> enrollments = enrollmentService.getUserEnrollments(userId);
+        return ResponseEntity.ok(enrollments);
     }
 
     /**
-     * Get current learning (for AI context)
+     * Get enrollments for a specific activity
+     * GET /api/enrollments/activity/{activityId}
      */
-    @GetMapping("/current-learning")
-    public ResponseEntity<Map<String, Object>> getCurrentLearning(Authentication auth) {
-        try {
-            List<CourseEnrollment> currentLearning = enrollmentService.getUserCurrentLearning(auth.getName());
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "currentLearning", currentLearning,
-                    "count", currentLearning.size()
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
-        }
+    @GetMapping("/activity/{activityId}")
+    public ResponseEntity<List<Enrollment>> getActivityEnrollments(
+            @PathVariable String activityId
+    ) {
+        log.info("Fetching enrollments for activity: {}", activityId);
+        List<Enrollment> enrollments = enrollmentService.getActivityEnrollments(activityId);
+        return ResponseEntity.ok(enrollments);
     }
 
     /**
-     * ✅ FIXED: Update progress with Authentication and ownership validation
+     * Check if user is enrolled in activity
+     * GET /api/enrollments/check/{activityId}
      */
-    @PutMapping("/progress/{enrollmentId}")
-    public ResponseEntity<Map<String, Object>> updateProgress(
+    @GetMapping("/check/{activityId}")
+    public ResponseEntity<Map<String, Boolean>> checkEnrollment(
+            @AuthenticationPrincipal String userId,
+            @PathVariable String activityId
+    ) {
+        log.info("Checking enrollment status for user: {} in activity: {}", userId, activityId);
+        boolean isEnrolled = enrollmentService.isUserEnrolled(userId, activityId);
+        return ResponseEntity.ok(Map.of("isEnrolled", isEnrolled));
+    }
+
+    /**
+     * Update enrollment progress
+     * PUT /api/enrollments/{enrollmentId}/progress
+     */
+    @PutMapping("/{enrollmentId}/progress")
+    public ResponseEntity<Void> updateProgress(
             @PathVariable String enrollmentId,
-            @RequestBody ProgressUpdateRequest request,
-            Authentication auth) { // ✅ Added Authentication parameter
+            @RequestBody Map<String, Integer> request
+    ) {
+        log.info("Updating progress for enrollment: {}", enrollmentId);
+
         try {
-            log.info("🔄 Progress update request: enrollmentId={}, userId={}, progress={}",
-                    enrollmentId, auth.getName(), request.getProgressPercentage());
-
-            // ✅ Add ownership validation
-            CourseEnrollment enrollment = enrollmentService.updateProgressWithValidation(
-                    enrollmentId,
-                    request.getProgressPercentage(),
-                    request.getTimeSpentMinutes(),
-                    auth.getName() // Pass user ID for ownership check
-            );
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Progress updated successfully",
-                    "enrollment", enrollment
-            ));
+            int completedSessions = request.get("completedSessions");
+            enrollmentService.updateProgress(enrollmentId, completedSessions);
+            return ResponseEntity.ok().build();
         } catch (Exception e) {
-            log.error("❌ Progress update error: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
+            log.error("Failed to update progress", e);
+            return ResponseEntity.badRequest().build();
         }
-    }
-
-    /**
-     * ✅ FIXED: Drop enrollment with Authentication
-     */
-    @PutMapping("/drop/{enrollmentId}")
-    public ResponseEntity<Map<String, Object>> dropEnrollment(
-            @PathVariable String enrollmentId,
-            @RequestBody DropRequest request,
-            Authentication auth) { // ✅ Added Authentication parameter
-        try {
-            CourseEnrollment enrollment = enrollmentService.dropEnrollmentWithValidation(
-                    enrollmentId,
-                    request.getReason(),
-                    auth.getName() // Pass user ID for ownership check
-            );
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Enrollment dropped successfully",
-                    "enrollment", enrollment
-            ));
-        } catch (Exception e) {
-            log.error("❌ Drop enrollment error: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
-        }
-    }
-
-    // DTOs
-    @Data
-    public static class ProgressUpdateRequest {
-        private Double progressPercentage;
-        private Integer timeSpentMinutes;
-    }
-
-    @Data
-    public static class DropRequest {
-        private String reason;
     }
 }

@@ -53,4 +53,11 @@ cloudinary:
   api-key: 269435948944377
   api-secret: "ZfU8VALycPCw2M-D7vL5u6-3kgo"
 
+razorpay:
+  key:
+    id: rzp_test_YqTdQL8TQyWX3M
+    secret: M6zLIpAzu1CXtX6zIZZ1znlm
+  callback:
+    url: http://localhost:8080/api/payments/callback
+
 
