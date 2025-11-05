@@ -23,6 +23,8 @@ public interface EnrollmentRepository extends MongoRepository<Enrollment, String
     // Check if user already enrolled
     Optional<Enrollment> findByUserIdAndActivityId(String userId, String activityId);
 
+    boolean existsByUserIdAndActivityId(String userId, String activityId);
+
     // Count enrollments by status
     long countByActivityIdAndStatus(String activityId, Enrollment.EnrollmentStatus status);
 

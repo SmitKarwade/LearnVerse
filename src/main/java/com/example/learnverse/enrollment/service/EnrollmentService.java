@@ -9,6 +9,7 @@ import com.example.learnverse.enrollment.model.Enrollment;
 import com.example.learnverse.enrollment.repository.EnrollmentRepository;
 import com.example.learnverse.payment.model.Order;
 import com.example.learnverse.payment.service.PaymentService;
+import com.example.learnverse.progress.service.UserProgressService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class EnrollmentService {
     private final ActivityRepository activityRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final UserProgressService userProgressService;
 
     /**
      * Initiate enrollment - creates enrollment after payment verification
@@ -79,10 +81,17 @@ public class EnrollmentService {
                         .build())
                 .build();
 
-        enrollmentRepository.save(enrollment);
+        Enrollment savedEnrollment = enrollmentRepository.save(enrollment);
+        log.info("Enrollment created successfully: {}", savedEnrollment.getId());
 
-        log.info("Enrollment created successfully: {}", enrollment.getId());
-        return enrollment;
+        try {
+            userProgressService.initializeProgress(userId, activity.getId());
+            log.info("✅ Progress initialized automatically for user: {} in activity: {}", userId, activity.getId());
+        } catch (Exception e) {
+            log.error("❌ Failed to initialize progress (enrollment still successful): {}", e.getMessage());
+        }
+
+        return savedEnrollment;
     }
 
     /**
