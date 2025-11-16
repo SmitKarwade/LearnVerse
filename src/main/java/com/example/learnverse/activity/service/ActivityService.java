@@ -456,7 +456,7 @@ public class ActivityService {
      * Get activities created by a specific tutor
      */
     public List<Activity> getActivitiesByTutor(String tutorId) {
-        return activityRepository.findByTutorIdAndIsActive(tutorId, true);
+        return activityRepository.findByTutorId(tutorId);
     }
 
     public Activity getActivityById(String activityId) {
